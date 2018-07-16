@@ -1,15 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	util "github.com/ipfs/iptb/util"
+	util "github.com/ipfs/iptb/testbed"
 
 	cli "github.com/urfave/cli"
 )
@@ -74,18 +72,17 @@ func main() {
 	app := cli.NewApp()
 	app.Usage = "iptb is a tool for managing test clusters of ipfs nodes"
 	app.Commands = []cli.Command{
-		connectCmd,
-		dumpStacksCmd,
-		forEachCmd,
-		getCmd,
 		initCmd,
+
+		startCmd,
 		killCmd,
 		restartCmd,
-		setCmd,
-		shellCmd,
-		startCmd,
+
+		connectCmd,
+
 		runCmd,
-		logsCmd,
+		shellCmd,
+		forEachCmd,
 	}
 
 	err := app.Run(os.Args)
@@ -154,7 +151,7 @@ var initCmd = cli.Command{
 			NodeType:  c.String("type"),
 		}
 
-		err := util.IpfsInit(cfg)
+		err := util.TBNInit(cfg)
 		handleErr("ipfs init err: ", err)
 		return nil
 	},
@@ -162,7 +159,7 @@ var initCmd = cli.Command{
 
 var startCmd = cli.Command{
 	Name:  "start",
-	Usage: "starts up all testbed nodes",
+	Usage: "starts up specified testbed nodes",
 	Flags: []cli.Flag{
 		cli.BoolFlag{
 			Name:  "wait",
@@ -180,6 +177,11 @@ var startCmd = cli.Command{
 			extra = strings.Fields(args)
 		}
 
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
 		if c.Args().Present() {
 			nodes, err := parseRange(c.Args()[0])
 			if err != nil {
@@ -187,24 +189,30 @@ var startCmd = cli.Command{
 			}
 
 			for _, n := range nodes {
-				nd, err := util.LoadNodeN(n)
+				nd, err := tb.LoadNodeN(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Start(extra)
+				_, err = nd.Start(extra...)
 				if err != nil {
 					fmt.Println("failed to start node: ", err)
 				}
 			}
 			return nil
+		} else {
+			nodes, err := tb.LoadNodes()
+			if err != nil {
+				return err
+			}
+			for _, n := range nodes {
+				_, err := n.Start(extra...)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-
-		nodes, err := util.LoadNodes()
-		if err != nil {
-			return err
-		}
-		return util.IpfsStart(nodes, c.Bool("wait"), extra)
 	},
 }
 
@@ -213,6 +221,11 @@ var killCmd = cli.Command{
 	Usage:   "kill a given node (or all nodes if none specified)",
 	Aliases: []string{"stop"},
 	Action: func(c *cli.Context) error {
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
 		if c.Args().Present() {
 			nodes, err := parseRange(c.Args()[0])
 			if err != nil {
@@ -220,26 +233,30 @@ var killCmd = cli.Command{
 			}
 
 			for _, n := range nodes {
-				nd, err := util.LoadNodeN(n)
+				nd, err := tb.LoadNodeN(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Kill()
+				_, err = nd.Kill(false)
 				if err != nil {
 					fmt.Println("failed to kill node: ", err)
 				}
 			}
 			return nil
+		} else {
+			nodes, err := tb.LoadNodes()
+			if err != nil {
+				return err
+			}
+			for _, n := range nodes {
+				_, err := n.Kill(false)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		nodes, err := util.LoadNodes()
-		if err != nil {
-			return err
-		}
-
-		err = util.IpfsKillAll(nodes)
-		handleErr("ipfs kill err: ", err)
-		return nil
 	},
 }
 
@@ -253,6 +270,11 @@ var restartCmd = cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
 		if c.Args().Present() {
 			nodes, err := parseRange(c.Args()[0])
 			if err != nil {
@@ -260,36 +282,39 @@ var restartCmd = cli.Command{
 			}
 
 			for _, n := range nodes {
-				nd, err := util.LoadNodeN(n)
+				nd, err := tb.LoadNodeN(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Kill()
+				_, err = nd.Kill(false)
 				if err != nil {
 					fmt.Println("restart: failed to kill node: ", err)
 				}
 
-				err = nd.Start(nil)
+				_, err = nd.Start()
 				if err != nil {
 					fmt.Println("restart: failed to start node again: ", err)
 				}
 			}
 			return nil
+		} else {
+			nodes, err := tb.LoadNodes()
+			if err != nil {
+				return err
+			}
+			for _, n := range nodes {
+				_, err := n.Kill(false)
+				if err != nil {
+					return err
+				}
+				_, err = n.Start()
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		nodes, err := util.LoadNodes()
-		if err != nil {
-			return err
-		}
-
-		err = util.IpfsKillAll(nodes)
-		if err != nil {
-			return fmt.Errorf("ipfs kill err: %s", err)
-		}
-
-		err = util.IpfsStart(nodes, c.Bool("wait"), nil)
-		handleErr("ipfs start err: ", err)
-		return nil
 	},
 }
 
@@ -311,7 +336,12 @@ NODE[x] - set to the peer ID of node x
 			return fmt.Errorf("parse err: %s", err)
 		}
 
-		n, err := util.LoadNodeN(i)
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
+		n, err := tb.LoadNodeN(i)
 		if err != nil {
 			return err
 		}
@@ -331,7 +361,12 @@ var connectCmd = cli.Command{
 			os.Exit(1)
 		}
 
-		nodes, err := util.LoadNodes()
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
+		nodes, err := tb.LoadNodes()
 		if err != nil {
 			return err
 		}
@@ -346,11 +381,11 @@ var connectCmd = cli.Command{
 			return fmt.Errorf("failed to parse: %s", err)
 		}
 
-		timeout := c.String("timeout")
+		timeout := c.Uint64("timeout")
 
 		for _, f := range from {
 			for _, t := range to {
-				err = util.ConnectNodes(nodes[f], nodes[t], timeout)
+				err = nodes[f].Connect(&nodes[t], time.Duration(timeout))
 				if err != nil {
 					return fmt.Errorf("failed to connect: %s", err)
 				}
@@ -359,13 +394,14 @@ var connectCmd = cli.Command{
 		return nil
 	},
 	Flags: []cli.Flag{
-		cli.StringFlag{
+		cli.Uint64Flag{
 			Name:  "timeout",
 			Usage: "timeout on the command",
 		},
 	},
 }
 
+/*
 var getCmd = cli.Command{
 	Name:  "get",
 	Usage: "get an attribute of the given node",
@@ -376,7 +412,13 @@ You can get the list of valid attributes by passing no arguments.`,
 		showUsage := func(w io.Writer) {
 			fmt.Fprintln(w, "iptb get [attr] [node]")
 			fmt.Fprintln(w, "Valid values of [attr] are:")
-			attr_list := util.GetListOfAttr()
+
+			tb, err := util.NewTestbed()
+			if err != nil {
+				return err
+			}
+
+			attr_list := tb.GetListOfAttr()
 			for _, a := range attr_list {
 				desc, err := util.GetAttrDescr(a)
 				handleErr("error getting attribute description: ", err)
@@ -468,13 +510,19 @@ var dumpStacksCmd = cli.Command{
 		return nil
 	},
 }
+*/
 
 var forEachCmd = cli.Command{
 	Name:            "for-each",
 	Usage:           "run a given command on each node",
 	SkipFlagParsing: true,
 	Action: func(c *cli.Context) error {
-		nodes, err := util.LoadNodes()
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
+		nodes, err := tb.LoadNodes()
 		if err != nil {
 			return err
 		}
@@ -500,7 +548,12 @@ var runCmd = cli.Command{
 			return err
 		}
 
-		nd, err := util.LoadNodeN(n)
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
+		nd, err := tb.LoadNodeN(n)
 		if err != nil {
 			return err
 		}
@@ -514,6 +567,7 @@ var runCmd = cli.Command{
 	},
 }
 
+/*
 var logsCmd = cli.Command{
 	Name:  "logs",
 	Usage: "shows logs of given node(s), use '*' for all nodes",
@@ -532,11 +586,16 @@ var logsCmd = cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		var nodes []util.IpfsNode
+		var nodes []util.TestbedNode
 		var err error
 
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
 		if c.Args()[0] == "*" {
-			nodes, err = util.LoadNodes()
+			nodes, err = tb.LoadNodes()
 			if err != nil {
 				return err
 			}
@@ -546,7 +605,7 @@ var logsCmd = cli.Command{
 				if err != nil {
 					return err
 				}
-				n, err := util.LoadNodeN(i)
+				n, err := tb.LoadNodeN(i)
 				if err != nil {
 					return err
 				}
@@ -598,3 +657,4 @@ var logsCmd = cli.Command{
 		return nil
 	},
 }
+*/
