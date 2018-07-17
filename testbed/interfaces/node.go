@@ -1,29 +1,32 @@
 package testbedi
 
 import (
+	"context"
+	"time"
+
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multiaddr"
-	"time"
 )
 
 type TestbedNode interface {
-	Init(agrs ...string) (TBOutput, error)
-	Start(args ...string) (TBOutput, error)
+	Init(ctx context.Context, agrs ...string) (TBOutput, error)
+	Start(ctx context.Context, args ...string) (TBOutput, error)
 	// This needs to handle killing when iptb is imported as a package and with used via cli
-	Kill(wait bool) error
+	Kill(ctx context.Context, wait bool) error
 
-	RunCmd(args ...string) (TBOutput, error)
-	Connect(tbn TestbedNode, timeout time.Duration) error
-	Shell() error
+	RunCmd(ctx context.Context, args ...string) (TBOutput, error)
+	Connect(ctx context.Context, tbn TestbedNode, timeout time.Duration) error
+	Shell(ctx context.Context) error
 
 	String() string
 
 	Infof(format string, args ...interface{})
 	Errorf(format string, args ...interface{})
 
+	Dir() (string, error)
+	PeerID() (*cid.Cid, error)
 	APIAddr() (multiaddr.Multiaddr, error)
 	SwarmAddrs() ([]multiaddr.Multiaddr, error)
-	PeerID() (*cid.Cid, error)
 
 	// Don't abuse!
 	// also maybe have this be a typed return
