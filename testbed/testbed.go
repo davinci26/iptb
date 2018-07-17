@@ -1,6 +1,7 @@
 package testbed
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/ipfs/iptb/testbed/interfaces"
@@ -134,7 +135,7 @@ func TBNInit(cfg *InitCfg) error {
 		wait.Add(1)
 		go func(nd testbedi.TestbedNode, i int) {
 			defer wait.Done()
-			_, err := nd.Init()
+			_, err := nd.Init(context.TODO())
 			if err != nil {
 				panic(err)
 				return

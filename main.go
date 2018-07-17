@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"io"
+
+	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -164,7 +166,7 @@ var startCmd = cli.Command{
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				_, err = nd.Start(extra...)
+				_, err = nd.Start(context.TODO(), extra...)
 				if err != nil {
 					fmt.Println("failed to start node: ", err)
 				}
@@ -176,7 +178,7 @@ var startCmd = cli.Command{
 				return err
 			}
 			for _, n := range nodes {
-				_, err := n.Start(extra...)
+				_, err := n.Start(context.TODO(), extra...)
 				if err != nil {
 					return err
 				}
@@ -208,7 +210,7 @@ var killCmd = cli.Command{
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Kill(false)
+				err = nd.Kill(context.TODO(), false)
 				if err != nil {
 					fmt.Println("failed to kill node: ", err)
 				}
@@ -220,7 +222,7 @@ var killCmd = cli.Command{
 				return err
 			}
 			for _, n := range nodes {
-				err := n.Kill(false)
+				err := n.Kill(context.TODO(), false)
 				if err != nil {
 					return err
 				}
@@ -257,12 +259,12 @@ var restartCmd = cli.Command{
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Kill(false)
+				err = nd.Kill(context.TODO(), false)
 				if err != nil {
 					fmt.Println("restart: failed to kill node: ", err)
 				}
 
-				_, err = nd.Start()
+				_, err = nd.Start(context.TODO())
 				if err != nil {
 					fmt.Println("restart: failed to start node again: ", err)
 				}
@@ -274,11 +276,11 @@ var restartCmd = cli.Command{
 				return err
 			}
 			for _, n := range nodes {
-				err := n.Kill(false)
+				err := n.Kill(context.TODO(), false)
 				if err != nil {
 					return err
 				}
-				_, err = n.Start()
+				_, err = n.Start(context.TODO())
 				if err != nil {
 					return err
 				}
@@ -316,7 +318,7 @@ NODE[x] - set to the peer ID of node x
 			return err
 		}
 
-		err = n.Shell()
+		err = n.Shell(context.TODO())
 		handleErr("ipfs shell err: ", err)
 		return nil
 	},
@@ -355,7 +357,7 @@ var connectCmd = cli.Command{
 
 		for _, f := range from {
 			for _, t := range to {
-				err = nodes[f].Connect(nodes[t], time.Duration(timeout))
+				err = nodes[f].Connect(context.TODO(), nodes[t], time.Duration(timeout))
 				if err != nil {
 					return fmt.Errorf("failed to connect: %s", err)
 				}
@@ -498,7 +500,7 @@ var forEachCmd = cli.Command{
 		}
 
 		for _, n := range nodes {
-			out, err := n.RunCmd(c.Args()...)
+			out, err := n.RunCmd(context.TODO(), c.Args()...)
 			if err != nil {
 				return err
 			}
@@ -528,7 +530,7 @@ var runCmd = cli.Command{
 			return err
 		}
 
-		out, err := nd.RunCmd(c.Args()[1:]...)
+		out, err := nd.RunCmd(context.TODO(), c.Args()[1:]...)
 		if err != nil {
 			return err
 		}

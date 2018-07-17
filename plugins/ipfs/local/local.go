@@ -153,13 +153,13 @@ func (l *Localipfs) env() ([]string, error) {
 
 /// TestbedNode Interface
 
-func (l *Localipfs) Init(agrs ...string) (testbedi.TBOutput, error) {
+func (l *Localipfs) Init(ctx context.Context, agrs ...string) (testbedi.TBOutput, error) {
 	if err := os.MkdirAll(l.dir, 0755); err != nil {
 		return nil, err
 	}
 
 	agrs = append([]string{"init"}, agrs...)
-	output, oerr := l.RunCmd(agrs...)
+	output, oerr := l.RunCmd(ctx, agrs...)
 
 	icfg, err := l.GetConfig()
 	if err != nil {
@@ -182,7 +182,7 @@ func (l *Localipfs) Init(agrs ...string) (testbedi.TBOutput, error) {
 	return output, oerr
 }
 
-func (l *Localipfs) Start(args ...string) (testbedi.TBOutput, error) {
+func (l *Localipfs) Start(ctx context.Context, args ...string) (testbedi.TBOutput, error) {
 	alive, err := l.isAlive()
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (l *Localipfs) Start(args ...string) (testbedi.TBOutput, error) {
 	return nil, nil
 }
 
-func (l *Localipfs) Kill(wait bool) error {
+func (l *Localipfs) Kill(ctx context.Context, wait bool) error {
 	pid, err := l.getPID()
 	if err != nil {
 		return fmt.Errorf("error killing daemon %s: %s", l.dir, err)
@@ -281,11 +281,11 @@ func (l *Localipfs) Kill(wait bool) error {
 	return nil
 }
 
-func (l *Localipfs) RunCmd(args ...string) (testbedi.TBOutput, error) {
-	return l.RunCmdWithStdin(nil, args...)
+func (l *Localipfs) RunCmd(ctx context.Context, args ...string) (testbedi.TBOutput, error) {
+	return l.RunCmdWithStdin(ctx, nil, args...)
 }
 
-func (l *Localipfs) RunCmdWithStdin(stdin io.Reader, args ...string) (testbedi.TBOutput, error) {
+func (l *Localipfs) RunCmdWithStdin(ctx context.Context, stdin io.Reader, args ...string) (testbedi.TBOutput, error) {
 	env, err := l.env()
 
 	if err != nil {
@@ -346,18 +346,18 @@ func (l *Localipfs) RunCmdWithStdin(stdin io.Reader, args ...string) (testbedi.T
 	return iptbutil.NewOutput(args, stdoutbytes, stderrbytes, exitcode, err)
 }
 
-func (l *Localipfs) Connect(tbn testbedi.TestbedNode, timeout time.Duration) error {
+func (l *Localipfs) Connect(ctx context.Context, tbn testbedi.TestbedNode, timeout time.Duration) error {
 	swarmaddrs, err := tbn.SwarmAddrs()
 	if err != nil {
 		return err
 	}
 
-	_, err = l.RunCmd("swarm", "connect", swarmaddrs[0].String())
+	_, err = l.RunCmd(ctx, "swarm", "connect", swarmaddrs[0].String())
 
 	return err
 }
 
-func (l *Localipfs) Shell() error {
+func (l *Localipfs) Shell(ctx context.Context) error {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		return fmt.Errorf("couldnt find shell!")
@@ -410,7 +410,7 @@ func (l *Localipfs) SwarmAddrs() ([]multiaddr.Multiaddr, error) {
 		return nil, err
 	}
 
-	output, err := l.RunCmd("swarm", "addrs", "local")
+	output, err := l.RunCmd(context.TODO(), "swarm", "addrs", "local")
 	if err != nil {
 		return nil, err
 	}
@@ -438,6 +438,10 @@ func (l *Localipfs) SwarmAddrs() ([]multiaddr.Multiaddr, error) {
 	l.swarmaddrs = maddrs
 
 	return l.swarmaddrs, err
+}
+
+func (l *Localipfs) Dir() (string, error) {
+	return l.dir, nil
 }
 
 func (l *Localipfs) PeerID() (*cid.Cid, error) {
