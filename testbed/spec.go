@@ -13,6 +13,7 @@ type NodeSpec struct {
 	Deployment string
 	Type       string
 	Dir        string
+	BinPath    string
 	Extra      map[string]interface{}
 }
 
@@ -103,7 +104,7 @@ func (ns *NodeSpec) Load() (testbedi.TestbedNode, error) {
 	pluginName := fmt.Sprintf("%s%s", ns.Deployment, ns.Type)
 
 	if plg, ok := plugins[pluginName]; ok {
-		node := plg.NewNode("/home/travis/bin/ipfs", ns.Dir)
+		node := plg.NewNode(ns.BinPath, ns.Dir)
 		return node, nil
 	}
 

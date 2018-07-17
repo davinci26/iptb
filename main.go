@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os/exec"
 
 	"context"
 	"os"
@@ -111,16 +112,48 @@ var initCmd = cli.Command{
 			Name:  "type",
 			Usage: "select type of nodes to initialize",
 		},
+		cli.StringFlag{
+			Name:  "deployment",
+			Usage: "how to deploy node (local)",
+		},
+		cli.StringFlag{
+			Name:  "bin",
+			Usage: "path to the binary",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		if c.Int("count") == 0 {
 			fmt.Printf("please specify number of nodes: '%s init -n 10'\n", os.Args[0])
 			os.Exit(1)
 		}
+
+		if len(c.String("type")) == 0 {
+			fmt.Printf("please specify a type: '%s init -type ipfs'\n", os.Args[0])
+			os.Exit(1)
+		}
+
+		if len(c.String("deployment")) == 0 {
+			fmt.Printf("please specify a deployment: '%s init -deployment local'\n", os.Args[0])
+			os.Exit(1)
+		}
+
+		binPath := c.String("bin")
+
+		if len(binPath) == 0 {
+			path, err := exec.LookPath(c.String("type"))
+			if err != nil {
+				fmt.Printf("please specify a bin, or make sure %s is in your PATH: '%s init -bin /tmp/ipfs'\n", c.String("type"), os.Args[0])
+				os.Exit(1)
+			}
+			binPath = path
+		}
+
 		cfg := &util.InitCfg{
-			Force:    c.Bool("f"),
-			Count:    c.Int("count"),
-			NodeType: c.String("type"),
+			Force:      c.Bool("f"),
+			Count:      c.Int("count"),
+			NodeType:   c.String("type"),
+			Deployment: c.String("deployment"),
+			BinPath:    binPath,
 		}
 
 		err := util.TBNInit(cfg)

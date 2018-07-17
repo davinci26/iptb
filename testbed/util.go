@@ -7,15 +7,17 @@ import (
 )
 
 type InitCfg struct {
-	Count     int
-	Force     bool
-	Bootstrap string
-	PortStart int
-	Mdns      bool
-	Utp       bool
-	Websocket bool
-	Override  string
-	NodeType  string
+	Count      int
+	Force      bool
+	Bootstrap  string
+	PortStart  int
+	Mdns       bool
+	Utp        bool
+	Websocket  bool
+	Override   string
+	NodeType   string
+	BinPath    string
+	Deployment string
 }
 
 func (c *InitCfg) swarmAddrForPeer(i int) string {

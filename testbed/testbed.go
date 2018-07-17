@@ -161,9 +161,10 @@ func initSpecs(cfg *InitCfg) ([]*NodeSpec, error) {
 		var spec *NodeSpec
 
 		spec = &NodeSpec{
-			Type:       "ipfs",
-			Deployment: "local",
+			Type:       cfg.NodeType,
+			Deployment: cfg.Deployment,
 			Dir:        dir,
+			BinPath:    cfg.BinPath,
 		}
 
 		specs = append(specs, spec)
