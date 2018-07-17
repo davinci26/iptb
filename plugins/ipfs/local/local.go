@@ -28,10 +28,11 @@ import (
 var ErrTimeout = errors.New("timeout")
 
 type Localipfs struct {
-	binpath string
-	dir     string
-	peerid  cid.Cid
-	api     multiaddr.Multiaddr
+	binpath    string
+	dir        string
+	peerid     *cid.Cid
+	apiaddr    *multiaddr.Multiaddr
+	swarmaddrs []multiaddr.Multiaddr
 }
 
 func (l *Localipfs) signalAndWait(p *os.Process, waitch <-chan struct{}, signal os.Signal, t time.Duration) error {
@@ -300,6 +301,8 @@ func (l *Localipfs) RunCmdWithStdin(stdin io.Reader, args ...string) (testbedi.T
 	cmd.Env = env
 	cmd.Stdin = stdin
 
+	l.Infof("%#v", args)
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err
@@ -311,6 +314,16 @@ func (l *Localipfs) RunCmdWithStdin(stdin io.Reader, args ...string) (testbedi.T
 	}
 
 	err = cmd.Start()
+
+	stderrbytes, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		return nil, err
+	}
+
+	stdoutbytes, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		return nil, err
+	}
 
 	if err != nil {
 		return nil, err
@@ -330,36 +343,123 @@ func (l *Localipfs) RunCmdWithStdin(stdin io.Reader, args ...string) (testbedi.T
 		err = oerr
 	}
 
-	return iptbutil.NewOutput(args, stdout, stderr, exitcode, err)
+	return iptbutil.NewOutput(args, stdoutbytes, stderrbytes, exitcode, err)
 }
 
-func (l *Localipfs) Connect(tbn *testbedi.TestbedNode, timeout time.Duration) error {
-	panic("not implemented")
+func (l *Localipfs) Connect(tbn testbedi.TestbedNode, timeout time.Duration) error {
+	swarmaddrs, err := tbn.SwarmAddrs()
+	if err != nil {
+		return err
+	}
+
+	_, err = l.RunCmd("swarm", "connect", swarmaddrs[0].String())
+
+	return err
 }
 
 func (l *Localipfs) Shell() error {
-	panic("not implemented")
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		return fmt.Errorf("couldnt find shell!")
+	}
+
+	nenvs := []string{"IPFS_PATH=" + l.dir}
+
+	return syscall.Exec(shell, []string{shell}, nenvs)
 }
 
 func (l *Localipfs) String() string {
-	panic("not implemented")
+	return fmt.Sprintf("localipfs")
 }
 
 func (l *Localipfs) Infof(format string, args ...interface{}) {
-	fmt.Printf(format, args...)
-	fmt.Println()
+	nformat := fmt.Sprintf("%s %s\n", l, format)
+	fmt.Fprintf(os.Stdout, nformat, args...)
 }
 
 func (l *Localipfs) Errorf(format string, args ...interface{}) {
-	panic("not implemented")
+	nformat := fmt.Sprintf("%s %s\n", l, format)
+	fmt.Fprintf(os.Stderr, nformat, args...)
 }
 
-func (l *Localipfs) APIAddr() (*multiaddr.Multiaddr, error) {
-	panic("not implemented")
+func (l *Localipfs) APIAddr() (multiaddr.Multiaddr, error) {
+	if l.apiaddr != nil {
+		return *l.apiaddr, nil
+	}
+
+	dir := l.dir
+
+	addrb, err := ioutil.ReadFile(filepath.Join(dir, "api"))
+	if err != nil {
+		return nil, err
+	}
+
+	maddr, err := multiaddr.NewMultiaddr(string(addrb))
+	if err != nil {
+		return nil, err
+	}
+
+	l.apiaddr = &maddr
+
+	return *l.apiaddr, nil
 }
 
-func (l *Localipfs) GetPeerID() (*cid.Cid, error) {
-	panic("not implemented")
+func (l *Localipfs) SwarmAddrs() ([]multiaddr.Multiaddr, error) {
+	pcid, err := l.PeerID()
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := l.RunCmd("swarm", "addrs", "local")
+	if err != nil {
+		return nil, err
+	}
+
+	bs, err := ioutil.ReadAll(output.Stdout())
+	if err != nil {
+		return nil, err
+	}
+
+	straddrs := strings.Split(string(bs), "\n")
+
+	var maddrs []multiaddr.Multiaddr
+	for _, straddr := range straddrs {
+		fstraddr := fmt.Sprintf("%s/ipfs/%s", straddr, pcid)
+		maddr, err := multiaddr.NewMultiaddr(fstraddr)
+		if err != nil {
+			return nil, err
+		}
+
+		maddrs = append(maddrs, maddr)
+	}
+
+	return maddrs, nil
+
+	l.swarmaddrs = maddrs
+
+	return l.swarmaddrs, err
+}
+
+func (l *Localipfs) PeerID() (*cid.Cid, error) {
+	if l.peerid != nil {
+		return l.peerid, nil
+	}
+
+	icfg, err := l.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	lcfg := icfg.(*config.Config)
+
+	pcid, err := cid.Decode(lcfg.Identity.PeerID)
+	if err != nil {
+		return nil, err
+	}
+
+	l.peerid = pcid
+
+	return l.peerid, err
 }
 
 func (l *Localipfs) GetAttr(string) (string, error) {
