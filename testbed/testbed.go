@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ipfs/iptb/testbed/interfaces"
+	"github.com/ipfs/iptb/util"
 	"io/ioutil"
 	"os"
 	"path"
@@ -109,7 +110,7 @@ func TBNInit(cfg *InitCfg) error {
 	}
 
 	if _, err := os.Stat(filepath.Join(tbd, "nodespec")); !os.IsNotExist(err) {
-		if !cfg.Force && !YesNoPrompt("testbed nodes already exist, overwrite? [y/n]") {
+		if !cfg.Force && !iptbutil.YesNoPrompt("testbed nodes already exist, overwrite? [y/n]") {
 			return nil
 		}
 		tbd, err := testBedDir()
@@ -203,19 +204,4 @@ func (tb *testbed) LoadNodes() ([]testbedi.TestbedNode, error) {
 	}
 
 	return tb.LoadNodesFromSpecs(specs)
-}
-
-func YesNoPrompt(prompt string) bool {
-	var s string
-	for {
-		fmt.Println(prompt)
-		fmt.Scanf("%s", &s)
-		switch s {
-		case "y", "Y":
-			return true
-		case "n", "N":
-			return false
-		}
-		fmt.Println("Please press either 'y' or 'n'")
-	}
 }

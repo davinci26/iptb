@@ -237,6 +237,8 @@ func (l *Localipfs) Start(ctx context.Context, args ...string) (testbedi.TBOutpu
 		return nil, err
 	}
 
+	iptbutil.SetupOpt(cmd)
+
 	stdout, err := os.Create(filepath.Join(dir, "daemon.stdout"))
 	if err != nil {
 		return nil, err
