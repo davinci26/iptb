@@ -98,6 +98,8 @@ func Bootstrap(nodes []testbedi.TestbedNode, port uint) error {
 }
 */
 
+var PluginName = "localipfs"
+
 func NewNode(binpath, dir string) testbedi.TestbedNode {
 	return &Localipfs{
 		dir:     dir,

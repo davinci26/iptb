@@ -1,7 +1,11 @@
 package testbed
 
 import (
+	"fmt"
 	"github.com/ipfs/iptb/testbed/interfaces"
+	"io/ioutil"
+	"os"
+	"path"
 	"plugin"
 )
 
@@ -12,34 +16,96 @@ type NodeSpec struct {
 	Extra      map[string]interface{}
 }
 
-var ipfslocal *plugin.Plugin
+type iptbplugin struct {
+	NewNode    func(binpath, dir string) testbedi.TestbedNode
+	PluginName string
+}
+
+var plugins map[string]iptbplugin
 
 func init() {
-	var err error
-	ipfslocal, err = plugin.Open("plugins/ipfs/local/local.so")
+	plugins = make(map[string]iptbplugin)
+
+	loadPlugins()
+}
+
+func pluginDir() (string, error) {
+	tbd := os.Getenv("IPTB_PLUGINS")
+	if len(tbd) != 0 {
+		return tbd, nil
+	}
+
+	home := os.Getenv("HOME")
+	if len(home) == 0 {
+		return "", fmt.Errorf("environment variable HOME is not set")
+	}
+
+	p := path.Join(home, ".iptbplugins")
+	err := os.MkdirAll(p, 0775)
+
+	return p, err
+}
+
+func loadPlugins() {
+	dir, err := pluginDir()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		return
+	}
+
+	plugs, err := ioutil.ReadDir(dir)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, f := range plugs {
+		err := loadPlugin(path.Join(dir, f.Name()))
+
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 	}
 }
 
-func (ns *NodeSpec) Load() (testbedi.TestbedNode, error) {
-	switch ns.Type {
-	case "ipfs":
-		switch ns.Deployment {
-		case "local":
-			NewNodeRaw, err := ipfslocal.Lookup("NewNode")
-			if err != nil {
-				panic(err)
-			}
+func loadPlugin(path string) error {
+	pl, err := plugin.Open(path)
 
-			NewNode := NewNodeRaw.(func(string, string) testbedi.TestbedNode)
-
-			return NewNode("/home/travis/bin/ipfs", ns.Dir), nil
-		default:
-			panic("unrecognized iptb node deplyomet")
-		}
-	default:
-		panic("unrecognized iptb node type")
+	if err != nil {
+		return err
 	}
-	return nil, nil
+
+	NewNodeSym, err := pl.Lookup("NewNode")
+	if err != nil {
+		return err
+	}
+
+	NewNode := NewNodeSym.(func(binpath, dir string) testbedi.TestbedNode)
+
+	PluginNameSym, err := pl.Lookup("PluginName")
+	if err != nil {
+		return err
+	}
+
+	PluginName := *(PluginNameSym.(*string))
+
+	plugins[PluginName] = iptbplugin{
+		NewNode:    NewNode,
+		PluginName: PluginName,
+	}
+
+	return nil
+}
+
+func (ns *NodeSpec) Load() (testbedi.TestbedNode, error) {
+	pluginName := fmt.Sprintf("%s%s", ns.Deployment, ns.Type)
+
+	if plg, ok := plugins[pluginName]; ok {
+		node := plg.NewNode("/home/travis/bin/ipfs", ns.Dir)
+		return node, nil
+	}
+
+	return nil, fmt.Errorf("Could not find plugin %s", pluginName)
 }
