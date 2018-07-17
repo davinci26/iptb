@@ -84,6 +84,8 @@ func main() {
 
 		connectCmd,
 
+		attrCmd,
+
 		runCmd,
 		shellCmd,
 		forEachCmd,
@@ -406,39 +408,76 @@ var connectCmd = cli.Command{
 	},
 }
 
-/*
-var getCmd = cli.Command{
-	Name:  "get",
-	Usage: "get an attribute of the given node",
-	Description: `Given an attribute name and a node number, prints the value of the attribute for the given node.
+var attrCmd = cli.Command{
+	Name:  "attr",
+	Usage: "get / set attrs",
+	Subcommands: []cli.Command{
+		getCmd,
+		listCmd,
+		setCmd,
+	},
+}
 
-You can get the list of valid attributes by passing no arguments.`,
+var listCmd = cli.Command{
+	Name:  "list",
+	Usage: "list attrs for a given type and deployment",
 	Action: func(c *cli.Context) error {
-		showUsage := func(w io.Writer) {
-			fmt.Fprintln(w, "iptb get [attr] [node]")
-			fmt.Fprintln(w, "Valid values of [attr] are:")
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
 
-			tb, err := util.NewTestbed()
+		showUsage := func(w io.Writer) {
+			fmt.Fprintln(w, "iptb attr list [node]")
+		}
+
+		switch len(c.Args()) {
+		case 1:
+			num, err := strconv.Atoi(c.Args().First())
+			handleErr("error parsing node number: ", err)
+
+			ln, err := tb.LoadNodeN(num)
 			if err != nil {
 				return err
 			}
 
-			attr_list := tb.GetListOfAttr()
+			attr_list := ln.GetAttrList()
 			for _, a := range attr_list {
-				desc, err := util.GetAttrDescr(a)
+				desc, err := ln.GetAttrDesc(a)
 				handleErr("error getting attribute description: ", err)
-				fmt.Fprintf(w, "\t%s: %s\n", a, desc)
+				fmt.Printf("\t%s: %s\n", a, desc)
 			}
+		default:
+			fmt.Fprintln(os.Stderr, "'iptb get' accepts exactly 1 argument")
+			showUsage(os.Stderr)
+			os.Exit(1)
 		}
+		return nil
+	},
+}
+
+var getCmd = cli.Command{
+	Name:        "get",
+	Usage:       "get an attribute of the given node",
+	Description: `Given an attribute name and a node number, prints the value of the attribute for the given node.`,
+	Action: func(c *cli.Context) error {
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
+		showUsage := func(w io.Writer) {
+			fmt.Fprintln(w, "iptb attr get [attr] [node]")
+			fmt.Fprintln(w, "Use iptb attr list [node] to see a list")
+		}
+
 		switch len(c.Args()) {
-		case 0:
-			showUsage(os.Stdout)
 		case 2:
 			attr := c.Args().First()
 			num, err := strconv.Atoi(c.Args()[1])
 			handleErr("error parsing node number: ", err)
 
-			ln, err := util.LoadNodeN(num)
+			ln, err := tb.LoadNodeN(num)
 			if err != nil {
 				return err
 			}
@@ -447,7 +486,7 @@ You can get the list of valid attributes by passing no arguments.`,
 			handleErr("error getting attribute: ", err)
 			fmt.Println(val)
 		default:
-			fmt.Fprintln(os.Stderr, "'iptb get' accepts exactly 0 or 2 arguments")
+			fmt.Fprintln(os.Stderr, "'iptb get' accepts exactly 2 arguments")
 			showUsage(os.Stderr)
 			os.Exit(1)
 		}
@@ -459,6 +498,11 @@ var setCmd = cli.Command{
 	Name:  "set",
 	Usage: "set an attribute of the given node",
 	Action: func(c *cli.Context) error {
+		tb, err := util.NewTestbed()
+		if err != nil {
+			return err
+		}
+
 		switch len(c.Args()) {
 		case 3:
 			attr := c.Args().First()
@@ -467,7 +511,7 @@ var setCmd = cli.Command{
 			handleErr("error parsing node number: ", err)
 
 			for _, i := range nodes {
-				ln, err := util.LoadNodeN(i)
+				ln, err := tb.LoadNodeN(i)
 				if err != nil {
 					return err
 				}
@@ -478,13 +522,14 @@ var setCmd = cli.Command{
 				}
 			}
 		default:
-			fmt.Fprintln(os.Stderr, "'iptb set' accepts exactly 3 arguments")
+			fmt.Fprintln(os.Stderr, "'iptb attr set' accepts exactly 3 arguments")
 			os.Exit(1)
 		}
 		return nil
 	},
 }
 
+/*
 var dumpStacksCmd = cli.Command{
 	Name:  "dump-stack",
 	Usage: "get a stack dump from the given daemon",

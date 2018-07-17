@@ -18,7 +18,7 @@ type NodeSpec struct {
 }
 
 type iptbplugin struct {
-	NewNode    func(binpath, dir string) testbedi.TestbedNode
+	NewNode    testbedi.NewNodeFunc //func(binpath, dir string) testbedi.TestbedNode
 	PluginName string
 }
 
@@ -83,7 +83,7 @@ func loadPlugin(path string) error {
 		return err
 	}
 
-	NewNode := NewNodeSym.(func(binpath, dir string) testbedi.TestbedNode)
+	NewNode := *(NewNodeSym.(*testbedi.NewNodeFunc))
 
 	PluginNameSym, err := pl.Lookup("PluginName")
 	if err != nil {

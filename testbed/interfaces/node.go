@@ -8,6 +8,10 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
+type NewNodeFunc func(binpath, dir string) TestbedNode
+type GetAttrListFunc func() []string
+type GetAttrDescFunc func(attr string) (string, error)
+
 type TestbedNode interface {
 	Init(ctx context.Context, agrs ...string) (TBOutput, error)
 	Start(ctx context.Context, args ...string) (TBOutput, error)
@@ -27,6 +31,9 @@ type TestbedNode interface {
 	PeerID() (*cid.Cid, error)
 	APIAddr() (multiaddr.Multiaddr, error)
 	SwarmAddrs() ([]multiaddr.Multiaddr, error)
+
+	GetAttrList() []string
+	GetAttrDesc(attr string) (string, error)
 
 	// Don't abuse!
 	// also maybe have this be a typed return

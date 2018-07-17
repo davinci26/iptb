@@ -18,6 +18,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/gxed/errors"
+	"github.com/ipfs/iptb/plugins/ipfs"
 	"github.com/ipfs/iptb/testbed/interfaces"
 	"github.com/ipfs/iptb/util"
 
@@ -26,6 +27,47 @@ import (
 )
 
 var ErrTimeout = errors.New("timeout")
+
+var PluginName = "localipfs"
+
+var NewNode testbedi.NewNodeFunc
+var GetAttrDesc testbedi.GetAttrDescFunc
+var GetAttrList testbedi.GetAttrListFunc
+
+const (
+	attrId    = "id"
+	attrPath  = "path"
+	attrBwIn  = "bw_in"
+	attrBwOut = "bw_out"
+)
+
+func init() {
+	NewNode = func(binpath, dir string) testbedi.TestbedNode {
+		return &Localipfs{
+			dir:     dir,
+			binpath: binpath,
+		}
+	}
+
+	GetAttrList = func() []string {
+		return []string{attrId, attrPath, attrBwIn, attrBwOut}
+	}
+
+	GetAttrDesc = func(attr string) (string, error) {
+		switch attr {
+		case attrId:
+			return "node ID", nil
+		case attrPath:
+			return "node IPFS_PATH", nil
+		case attrBwIn:
+			return "node input bandwidth", nil
+		case attrBwOut:
+			return "node output bandwidth", nil
+		default:
+			return "", errors.New("unrecognized attribute")
+		}
+	}
+}
 
 type Localipfs struct {
 	binpath    string
@@ -97,15 +139,6 @@ func Bootstrap(nodes []testbedi.TestbedNode, port uint) error {
 	return nil
 }
 */
-
-var PluginName = "localipfs"
-
-func NewNode(binpath, dir string) testbedi.TestbedNode {
-	return &Localipfs{
-		dir:     dir,
-		binpath: binpath,
-	}
-}
 
 func (l *Localipfs) getPID() (int, error) {
 	b, err := ioutil.ReadFile(filepath.Join(l.dir, "daemon.pid"))
@@ -468,12 +501,43 @@ func (l *Localipfs) PeerID() (*cid.Cid, error) {
 	return l.peerid, err
 }
 
-func (l *Localipfs) GetAttr(string) (string, error) {
-	panic("not implemented")
+func (l *Localipfs) GetAttrList() []string {
+	return GetAttrList()
+}
+
+func (l *Localipfs) GetAttrDesc(attr string) (string, error) {
+	return GetAttrDesc(attr)
+}
+
+func (l *Localipfs) GetAttr(attr string) (string, error) {
+	switch attr {
+	case attrId:
+		pcid, err := l.PeerID()
+		if err != nil {
+			return "", err
+		}
+		return pcid.String(), nil
+	case attrPath:
+		return l.dir, nil
+	case attrBwIn:
+		bw, err := ipfs.GetBW(l)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprint(bw.TotalIn), nil
+	case attrBwOut:
+		bw, err := ipfs.GetBW(l)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprint(bw.TotalOut), nil
+	default:
+		return "", errors.New("unrecognized attribute: " + attr)
+	}
 }
 
 func (l *Localipfs) SetAttr(string, string) error {
-	panic("not implemented")
+	return fmt.Errorf("no attribute to set")
 }
 
 func (l *Localipfs) GetConfig() (interface{}, error) {
