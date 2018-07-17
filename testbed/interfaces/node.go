@@ -1,4 +1,4 @@
-package iptbutil
+package testbedi
 
 import (
 	"github.com/ipfs/go-cid"
@@ -6,22 +6,13 @@ import (
 	"time"
 )
 
-type Deployment int
-
-const (
-	LOCAL Deployment = iota
-	DOCKER
-	REMOTE
-	KUBERNETES
-)
-
 type TestbedNode interface {
-	Init(agrs ...string) (*TBOutput, error)
-	Start(args ...string) (*TBOutput, error)
+	Init(agrs ...string) (TBOutput, error)
+	Start(args ...string) (TBOutput, error)
 	// This needs to handle killing when iptb is imported as a package and with used via cli
-	Kill(wait bool) (*TBOutput, error)
+	Kill(wait bool) error
 
-	RunCmd(args ...string) (*TBOutput, error)
+	RunCmd(args ...string) (TBOutput, error)
 	Connect(tbn *TestbedNode, timeout time.Duration) error
 	Shell() error
 
@@ -38,8 +29,8 @@ type TestbedNode interface {
 	GetAttr(string) (string, error)
 	SetAttr(string, string) error
 
-	GetConfig() (map[interface{}]interface{}, error)
-	WriteConfig(map[interface{}]interface{}) error
+	GetConfig() (interface{}, error)
+	WriteConfig(interface{}) error
 
 	// TP, FW: Thinks this should be defined in the impl, not on an interface
 	//BinPath() string
@@ -47,5 +38,5 @@ type TestbedNode interface {
 	// What does this Node Represent
 	Type() string // ipfs
 	// How is it managed
-	Deployment() Deployment // process, docker, k8, (?remote?)
+	Deployment() string // process, docker, k8, (?remote?)
 }

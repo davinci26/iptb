@@ -1,23 +1,23 @@
-package iptbutil
+package testbed
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ipfs/iptb/testbed/interfaces"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
-
-	util "github.com/ipfs/iptb/util"
+	"sync"
 )
 
 type Testbed interface {
 	Name() string
-	Nodes() ([]TestbedNode, error)
+	Nodes() ([]testbedi.TestbedNode, error)
 
-	RunCmdForEach(args ...string) ([]TBOutput, error) // most errors should be in the TBOutput
+	RunCmdForEach(args ...string) ([]testbedi.TBOutput, error) // most errors should be in the TBOutput
 
-	LoadNodesFromSpec(specs []*NodeSpec) ([]TestbedNode, error)
+	LoadNodesFromSpec(specs []*NodeSpec) ([]testbedi.TestbedNode, error)
 
 	ReadNodeSpecs() ([]*NodeSpec, error)
 	WriteNodeSpecs(specs []*NodeSpec) error
@@ -36,8 +36,8 @@ type testbed struct {
 }
 
 // LoadNodesFromSpecs accepts a NodeSpec `spec` and returns interfaces of the TestBedNode type derived from `spec`
-func (tb *testbed) LoadNodesFromSpecs(specs []*NodeSpec) ([]TestbedNode, error) {
-	var out []TestbedNode
+func (tb *testbed) LoadNodesFromSpecs(specs []*NodeSpec) ([]testbedi.TestbedNode, error) {
+	var out []testbedi.TestbedNode
 	for _, s := range specs {
 		nd, err := s.Load()
 		if err != nil {
@@ -93,6 +93,14 @@ func NewTestbed() (*testbed, error) {
 	}, nil
 }
 
+func nodeDirN(n int) (string, error) {
+	tbd, err := testBedDir()
+	if err != nil {
+		return "", err
+	}
+	return path.Join(tbd, fmt.Sprint(n)), nil
+}
+
 func TBNInit(cfg *InitCfg) error {
 	tbd, err := testBedDir()
 	if err != nil {
@@ -100,7 +108,7 @@ func TBNInit(cfg *InitCfg) error {
 	}
 
 	if _, err := os.Stat(filepath.Join(tbd, "nodespec")); !os.IsNotExist(err) {
-		if !cfg.Force && !util.YesNoPrompt("testbed nodes already exist, overwrite? [y/n]") {
+		if !cfg.Force && !YesNoPrompt("testbed nodes already exist, overwrite? [y/n]") {
 			return nil
 		}
 		tbd, err := testBedDir()
@@ -110,29 +118,57 @@ func TBNInit(cfg *InitCfg) error {
 		}
 	}
 
-	//specs, err := initSpecs(cfg)
+	tb, err := NewTestbed()
+	if err != nil {
+		return err
+	}
 
-	//nodes, err := NodesFromSpecs(specs)
+	specs, err := initSpecs(cfg)
 
-	//err = WriteNodeSpecs(specs)
+	nodes, err := tb.LoadNodesFromSpecs(specs)
 
-	/*
-		wait := sync.WaitGroup{}
-		for _, n := range nodes {
-			wait.Add(1)
-			go func(nd IpfsNode) {
-				defer wait.Done()
-				err := nd.Init()
-				if err != nil {
-					stump.Error(err)
-					return
-				}
-			}(n)
-		}
-		wait.Wait()
-	*/
+	err = tb.WriteNodeSpecs(specs)
+
+	wait := sync.WaitGroup{}
+	for i, n := range nodes {
+		wait.Add(1)
+		go func(nd testbedi.TestbedNode, i int) {
+			defer wait.Done()
+			_, err := nd.Init()
+			if err != nil {
+				panic(err)
+				return
+			}
+		}(n, i)
+	}
+
+	wait.Wait()
 
 	return nil
+}
+
+func initSpecs(cfg *InitCfg) ([]*NodeSpec, error) {
+	var specs []*NodeSpec
+
+	for i := 0; i < cfg.Count; i++ {
+		dir, err := nodeDirN(i)
+
+		if err != nil {
+			return nil, err
+		}
+
+		var spec *NodeSpec
+
+		spec = &NodeSpec{
+			Type:       "ipfs",
+			Deployment: "local",
+			Dir:        dir,
+		}
+
+		specs = append(specs, spec)
+	}
+
+	return specs, nil
 }
 
 func testBedDir() (string, error) {
@@ -149,7 +185,7 @@ func testBedDir() (string, error) {
 	return path.Join(home, "testbed"), nil
 }
 
-func (tb *testbed) LoadNodeN(n int) (TestbedNode, error) {
+func (tb *testbed) LoadNodeN(n int) (testbedi.TestbedNode, error) {
 	specs, err := tb.ReadNodeSpecs()
 	if err != nil {
 		return nil, err
@@ -158,11 +194,26 @@ func (tb *testbed) LoadNodeN(n int) (TestbedNode, error) {
 	return specs[n].Load()
 }
 
-func (tb *testbed) LoadNodes() ([]TestbedNode, error) {
+func (tb *testbed) LoadNodes() ([]testbedi.TestbedNode, error) {
 	specs, err := tb.ReadNodeSpecs()
 	if err != nil {
 		return nil, err
 	}
 
 	return tb.LoadNodesFromSpecs(specs)
+}
+
+func YesNoPrompt(prompt string) bool {
+	var s string
+	for {
+		fmt.Println(prompt)
+		fmt.Scanf("%s", &s)
+		switch s {
+		case "y", "Y":
+			return true
+		case "n", "N":
+			return false
+		}
+		fmt.Println("Please press either 'y' or 'n'")
+	}
 }

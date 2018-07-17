@@ -1,4 +1,4 @@
-package iptbutil
+package testbedi
 
 import (
 	"io"
@@ -15,7 +15,6 @@ type TBOutput interface {
 	// Code is the unix style exit code, set after the command exited.
 	ExitCode() int
 
-	Stdin() io.WriteCloser
 	Stdout() io.ReadCloser
 	Stderr() io.ReadCloser
 }

@@ -100,34 +100,9 @@ var initCmd = cli.Command{
 			Name:  "count, n",
 			Usage: "number of ipfs nodes to initialize",
 		},
-		cli.IntFlag{
-			Name:  "port, p",
-			Usage: "port to start allocations from",
-		},
 		cli.BoolFlag{
 			Name:  "force, f",
 			Usage: "force initialization (overwrite existing configs)",
-		},
-		cli.BoolFlag{
-			Name:  "mdns",
-			Usage: "turn on mdns for nodes",
-		},
-		cli.StringFlag{
-			Name:  "bootstrap",
-			Usage: "select bootstrapping style for cluster",
-			Value: "star",
-		},
-		cli.BoolFlag{
-			Name:  "utp",
-			Usage: "use utp for addresses",
-		},
-		cli.BoolFlag{
-			Name:  "ws",
-			Usage: "use websocket for addresses",
-		},
-		cli.StringFlag{
-			Name:  "cfg",
-			Usage: "override default config with values from the given file",
 		},
 		cli.StringFlag{
 			Name:  "type",
@@ -140,15 +115,9 @@ var initCmd = cli.Command{
 			os.Exit(1)
 		}
 		cfg := &util.InitCfg{
-			Bootstrap: c.String("bootstrap"),
-			Force:     c.Bool("f"),
-			Count:     c.Int("count"),
-			Mdns:      c.Bool("mdns"),
-			Utp:       c.Bool("utp"),
-			Websocket: c.Bool("ws"),
-			PortStart: c.Int("port"),
-			Override:  c.String("cfg"),
-			NodeType:  c.String("type"),
+			Force:    c.Bool("f"),
+			Count:    c.Int("count"),
+			NodeType: c.String("type"),
 		}
 
 		err := util.TBNInit(cfg)
@@ -238,7 +207,7 @@ var killCmd = cli.Command{
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				_, err = nd.Kill(false)
+				err = nd.Kill(false)
 				if err != nil {
 					fmt.Println("failed to kill node: ", err)
 				}
@@ -250,7 +219,7 @@ var killCmd = cli.Command{
 				return err
 			}
 			for _, n := range nodes {
-				_, err := n.Kill(false)
+				err := n.Kill(false)
 				if err != nil {
 					return err
 				}
@@ -287,7 +256,7 @@ var restartCmd = cli.Command{
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				_, err = nd.Kill(false)
+				err = nd.Kill(false)
 				if err != nil {
 					fmt.Println("restart: failed to kill node: ", err)
 				}
@@ -304,7 +273,7 @@ var restartCmd = cli.Command{
 				return err
 			}
 			for _, n := range nodes {
-				_, err := n.Kill(false)
+				err := n.Kill(false)
 				if err != nil {
 					return err
 				}
