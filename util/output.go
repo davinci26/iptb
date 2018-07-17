@@ -1,6 +1,7 @@
 package iptbutil
 
 import (
+	"bytes"
 	"github.com/ipfs/iptb/testbed/interfaces"
 	"io"
 )
@@ -11,11 +12,11 @@ type Output struct {
 	exitcode int
 
 	err    error
-	stdout io.ReadCloser
-	stderr io.ReadCloser
+	stdout []byte
+	stderr []byte
 }
 
-func NewOutput(args []string, stdout, stderr io.ReadCloser, exitcode int, cmderr error) (testbedi.TBOutput, error) {
+func NewOutput(args []string, stdout, stderr []byte, exitcode int, cmderr error) (testbedi.TBOutput, error) {
 
 	return &Output{
 		args:     args,
@@ -37,10 +38,10 @@ func (o *Output) ExitCode() int {
 	return o.exitcode
 }
 
-func (o *Output) Stdout() io.ReadCloser {
-	return o.stdout
+func (o *Output) Stdout() io.Reader {
+	return bytes.NewReader(o.stdout)
 }
 
-func (o *Output) Stderr() io.ReadCloser {
-	return o.stderr
+func (o *Output) Stderr() io.Reader {
+	return bytes.NewReader(o.stderr)
 }

@@ -15,6 +15,6 @@ type TBOutput interface {
 	// Code is the unix style exit code, set after the command exited.
 	ExitCode() int
 
-	Stdout() io.ReadCloser
-	Stderr() io.ReadCloser
+	Stdout() io.Reader
+	Stderr() io.Reader
 }

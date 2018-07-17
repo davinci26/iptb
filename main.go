@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -354,7 +355,7 @@ var connectCmd = cli.Command{
 
 		for _, f := range from {
 			for _, t := range to {
-				err = nodes[f].Connect(&nodes[t], time.Duration(timeout))
+				err = nodes[f].Connect(nodes[t], time.Duration(timeout))
 				if err != nil {
 					return fmt.Errorf("failed to connect: %s", err)
 				}
@@ -531,7 +532,10 @@ var runCmd = cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Print(out)
+
+		io.Copy(os.Stdout, out.Stdout())
+		io.Copy(os.Stderr, out.Stderr())
+
 		return nil
 	},
 }

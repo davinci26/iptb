@@ -13,7 +13,7 @@ type TestbedNode interface {
 	Kill(wait bool) error
 
 	RunCmd(args ...string) (TBOutput, error)
-	Connect(tbn *TestbedNode, timeout time.Duration) error
+	Connect(tbn TestbedNode, timeout time.Duration) error
 	Shell() error
 
 	String() string
@@ -21,8 +21,9 @@ type TestbedNode interface {
 	Infof(format string, args ...interface{})
 	Errorf(format string, args ...interface{})
 
-	APIAddr() (*multiaddr.Multiaddr, error)
-	GetPeerID() (*cid.Cid, error)
+	APIAddr() (multiaddr.Multiaddr, error)
+	SwarmAddrs() ([]multiaddr.Multiaddr, error)
+	PeerID() (*cid.Cid, error)
 
 	// Don't abuse!
 	// also maybe have this be a typed return
