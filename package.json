@@ -36,6 +36,23 @@
       "hash": "QmfEZa44SyWfyXpkbVfi19H1QpY73DU6E5omK2HbKXwqR6",
       "name": "go-ctrlnet",
       "version": "0.1.0"
+    },
+    {
+      "author": "whyrusleeping",
+      "hash": "QmVmDhyTTUcQXFD1rRQ64fGLMSAoaQvNH3hwuaCFAPq2hy",
+      "name": "errors",
+      "version": "0.0.1"
+    },
+    {
+      "author": "whyrusleeping",
+      "hash": "QmYVNvtQkeZ6AKSwDrjQTs432QtL6umrrK41EBq3cu7iSP",
+      "name": "go-cid",
+      "version": "0.7.22"
+    },
+    {
+      "hash": "QmTRP6dcuYwcGDvAH8HvJtoupPrhZDQ8AoxMEn9gMzbgMy",
+      "name": "go-ipfs",
+      "version": "0.4.16"
     }
   ],
   "gxVersion": "0.6.0",
