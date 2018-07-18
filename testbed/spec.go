@@ -20,6 +20,7 @@ type NodeSpec struct {
 }
 
 type iptbplugin struct {
+	From       string
 	NewNode    testbedi.NewNodeFunc
 	PluginName string
 	BuiltIn    bool
@@ -31,12 +32,14 @@ func init() {
 	plugins = make(map[string]iptbplugin)
 
 	plugins[pluginlocalipfs.PluginName] = iptbplugin{
+		From:       "<builtin>",
 		NewNode:    pluginlocalipfs.NewNode,
 		PluginName: pluginlocalipfs.PluginName,
 		BuiltIn:    true,
 	}
 
 	plugins[plugindockeripfs.PluginName] = iptbplugin{
+		From:       "<builtin>",
 		NewNode:    plugindockeripfs.NewNode,
 		PluginName: plugindockeripfs.PluginName,
 		BuiltIn:    true,
@@ -109,13 +112,14 @@ func loadPlugin(path string) error {
 
 	if pl, exists := plugins[PluginName]; exists {
 		if pl.BuiltIn {
-			fmt.Printf("overriding built in plugin %s with %s", PluginName path)
+			fmt.Printf("overriding built in plugin %s with %s\n", PluginName, path)
 		} else {
-			fmt.Printf("plugin %s already loaded, overriding with %s", PluginName, path)
+			return fmt.Errorf("plugin %s already loaded from %s\n", pl.PluginName, pl.From)
 		}
 	}
 
 	plugins[PluginName] = iptbplugin{
+		From:       path,
 		NewNode:    NewNode,
 		PluginName: PluginName,
 		BuiltIn:    false,
