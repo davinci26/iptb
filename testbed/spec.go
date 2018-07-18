@@ -73,7 +73,6 @@ func loadPlugins() {
 	}
 
 	plugs, err := ioutil.ReadDir(dir)
-
 	if err != nil {
 		fmt.Println(err)
 		return
