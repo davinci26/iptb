@@ -7,25 +7,40 @@ import (
 	"os"
 	"path"
 	"plugin"
+
+	"github.com/ipfs/iptb/plugins/ipfs/docker"
+	"github.com/ipfs/iptb/plugins/ipfs/local"
 )
 
 type NodeSpec struct {
 	Deployment string
 	Type       string
 	Dir        string
-	BinPath    string
 	Extra      map[string]interface{}
 }
 
 type iptbplugin struct {
-	NewNode    testbedi.NewNodeFunc //func(binpath, dir string) testbedi.TestbedNode
+	NewNode    testbedi.NewNodeFunc
 	PluginName string
+	BuiltIn    bool
 }
 
 var plugins map[string]iptbplugin
 
 func init() {
 	plugins = make(map[string]iptbplugin)
+
+	plugins[pluginlocalipfs.PluginName] = iptbplugin{
+		NewNode:    pluginlocalipfs.NewNode,
+		PluginName: pluginlocalipfs.PluginName,
+		BuiltIn:    true,
+	}
+
+	plugins[plugindockeripfs.PluginName] = iptbplugin{
+		NewNode:    plugindockeripfs.NewNode,
+		PluginName: plugindockeripfs.PluginName,
+		BuiltIn:    true,
+	}
 
 	loadPlugins()
 }
@@ -92,9 +107,18 @@ func loadPlugin(path string) error {
 
 	PluginName := *(PluginNameSym.(*string))
 
+	if pl, exists := plugins[PluginName]; exists {
+		if pl.BuiltIn {
+			fmt.Printf("overriding built in plugin %s with %s", PluginName path)
+		} else {
+			fmt.Printf("plugin %s already loaded, overriding with %s", PluginName, path)
+		}
+	}
+
 	plugins[PluginName] = iptbplugin{
 		NewNode:    NewNode,
 		PluginName: PluginName,
+		BuiltIn:    false,
 	}
 
 	return nil

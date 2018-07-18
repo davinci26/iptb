@@ -1,4 +1,4 @@
-package main
+package plugindockeripfs
 
 import (
 	"bytes"

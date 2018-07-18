@@ -1,4 +1,4 @@
-package main
+package pluginlocalipfs
 
 import (
 	"context"
