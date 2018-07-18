@@ -488,12 +488,12 @@ NODE[x] - set to the peer ID of node x
 			return err
 		}
 
-		n, err := tb.LoadNode(i)
+		nodes, err := tb.LoadNodes()
 		if err != nil {
 			return err
 		}
 
-		err = n.Shell(context.TODO())
+		err = nodes[i].Shell(context.TODO(), nodes)
 		handleErr("ipfs shell err: ", err)
 		return nil
 	},

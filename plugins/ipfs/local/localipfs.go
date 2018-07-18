@@ -407,13 +407,26 @@ func (l *Localipfs) Connect(ctx context.Context, tbn testbedi.TestbedNode, timeo
 	return err
 }
 
-func (l *Localipfs) Shell(ctx context.Context) error {
+func (l *Localipfs) Shell(ctx context.Context, nodes []testbedi.TestbedNode) error {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		return fmt.Errorf("couldnt find shell!")
 	}
 
-	nenvs := []string{"IPFS_PATH=" + l.dir}
+	nenvs, err := l.env()
+	if err != nil {
+		return err
+	}
+
+	for i, n := range nodes {
+		peerid, err := n.PeerID()
+
+		if err != nil {
+			return err
+		}
+
+		nenvs = append(nenvs, fmt.Sprintf("NODE%d=%s", i, peerid))
+	}
 
 	return syscall.Exec(shell, []string{shell}, nenvs)
 }

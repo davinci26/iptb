@@ -482,13 +482,30 @@ func (l *Dockeripfs) Connect(ctx context.Context, tbn testbedi.TestbedNode, time
 	return err
 }
 
-func (l *Dockeripfs) Shell(ctx context.Context) error {
+func (l *Dockeripfs) Shell(ctx context.Context, nodes []testbedi.TestbedNode) error {
 	id, err := l.getID()
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("docker", "exec", "-ti", id, "/bin/sh")
+	nenvs := []string{}
+	for i, n := range nodes {
+		peerid, err := n.PeerID()
+
+		if err != nil {
+			return err
+		}
+
+		nenvs = append(nenvs, fmt.Sprintf("NODE%d=%s", i, peerid))
+	}
+
+	args := []string{"exec", "-it"}
+	for _, e := range nenvs {
+		args = append(args, "-e", e)
+	}
+
+	args = append(args, id, "/bin/sh")
+	cmd := exec.Command("docker", args...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin

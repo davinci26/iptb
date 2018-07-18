@@ -35,7 +35,7 @@ type TestbedNode interface {
 	Connect(ctx context.Context, tbn TestbedNode, timeout time.Duration) error
 
 	// Starts a shell in the context of the node
-	Shell(ctx context.Context) error
+	Shell(ctx context.Context, nodes []TestbedNode) error
 
 	// Writes a log line to stdout
 	Infof(format string, args ...interface{})
