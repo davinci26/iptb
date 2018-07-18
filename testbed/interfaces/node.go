@@ -2,6 +2,7 @@ package testbedi
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -12,42 +13,81 @@ type NewNodeFunc func(binpath, dir string) TestbedNode
 type GetAttrListFunc func() []string
 type GetAttrDescFunc func(attr string) (string, error)
 
+// TestbedNode specifies the interface to a process controlled by iptb
 type TestbedNode interface {
+	// Allows a node to run an initialization it may require
+	// Ex: Installing additional dependencies / setuping configuration
 	Init(ctx context.Context, agrs ...string) (TBOutput, error)
-	Start(ctx context.Context, args ...string) (TBOutput, error)
-	// This needs to handle killing when iptb is imported as a package and with used via cli
-	Kill(ctx context.Context, wait bool) error
 
+	// Starts the node
+	Start(ctx context.Context, args ...string) (TBOutput, error)
+
+	// Stops the node
+	Stop(ctx context.Context, wait bool) error
+
+	// Runs a command in the context of the node
 	RunCmd(ctx context.Context, args ...string) (TBOutput, error)
+
+	// Runs a command in the context of the node with a stdin
+	RunCmdWithStdin(ctx context.Context, stdin io.Reader, args ...string) (TBOutput, error)
+
+	// Connect the node to another
 	Connect(ctx context.Context, tbn TestbedNode, timeout time.Duration) error
+
+	// Starts a shell in the context of the node
 	Shell(ctx context.Context) error
 
-	String() string
-
+	// Writes a log line to stdout
 	Infof(format string, args ...interface{})
+
+	// Writes a log line to stderr
 	Errorf(format string, args ...interface{})
 
-	Dir() (string, error)
+	// PeerID returns the peer id
 	PeerID() (*cid.Cid, error)
+
+	// APIAddr returns the multiaddr for the api
 	APIAddr() (multiaddr.Multiaddr, error)
+
+	// SwarmAddrs returns the swarm addrs for the node
 	SwarmAddrs() ([]multiaddr.Multiaddr, error)
 
+	// GetAttrList returns a list of attrs that can be retreived
 	GetAttrList() []string
+
+	// GetAttrDesc returns the description of attr
 	GetAttrDesc(attr string) (string, error)
 
-	// Don't abuse!
-	// also maybe have this be a typed return
-	GetAttr(string) (string, error)
-	SetAttr(string, string) error
+	// GetAttr returns the value of attr
+	GetAttr(attr string) (string, error)
 
+	// SetAttr sets the attr to val
+	SetAttr(attr string, val string) error
+
+	// Events returns reader for events
+	Events() (io.ReadCloser, error)
+
+	// StderrReader returns reader of stderr for the node
+	StderrReader() (io.ReadCloser, error)
+
+	// StdoutReader returns reader of stdout for the node
+	StdoutReader() (io.ReadCloser, error)
+
+	// GetConfig returns the configuration of the node
 	GetConfig() (interface{}, error)
+
+	// WriteConfig writes the configuration of the node
 	WriteConfig(interface{}) error
 
-	// TP, FW: Thinks this should be defined in the impl, not on an interface
-	//BinPath() string
+	// Dir returns the iptb directory assigned to the node
+	Dir() string
 
-	// What does this Node Represent
-	Type() string // ipfs
-	// How is it managed
-	Deployment() string // process, docker, k8, (?remote?)
+	// Type returns the type of node
+	Type() string
+
+	// Type returns the deployment
+	Deployment() string
+
+	// String returns a unique identify
+	String() string
 }

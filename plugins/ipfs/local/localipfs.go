@@ -267,7 +267,7 @@ func (l *Localipfs) Start(ctx context.Context, args ...string) (testbedi.TBOutpu
 	return nil, nil
 }
 
-func (l *Localipfs) Kill(ctx context.Context, wait bool) error {
+func (l *Localipfs) Stop(ctx context.Context, wait bool) error {
 	pid, err := l.getPID()
 	if err != nil {
 		return fmt.Errorf("error killing daemon %s: %s", l.dir, err)
@@ -477,8 +477,8 @@ func (l *Localipfs) SwarmAddrs() ([]multiaddr.Multiaddr, error) {
 	return l.swarmaddrs, err
 }
 
-func (l *Localipfs) Dir() (string, error) {
-	return l.dir, nil
+func (l *Localipfs) Dir() string {
+	return l.dir
 }
 
 func (l *Localipfs) PeerID() (*cid.Cid, error) {
@@ -542,6 +542,18 @@ func (l *Localipfs) SetAttr(string, string) error {
 	return fmt.Errorf("no attribute to set")
 }
 
+func (l *Localipfs) Events() (io.ReadCloser, error) {
+	return ipfs.ReadLogs(l)
+}
+
+func (l *Localipfs) StderrReader() (io.ReadCloser, error) {
+	return l.readerFor("daemon.stdout")
+}
+
+func (l *Localipfs) StdoutReader() (io.ReadCloser, error) {
+	return l.readerFor("daemon.stdout")
+}
+
 func (l *Localipfs) GetConfig() (interface{}, error) {
 	return serial.Load(filepath.Join(l.dir, "config"))
 }
@@ -556,4 +568,8 @@ func (l *Localipfs) Type() string {
 
 func (l *Localipfs) Deployment() string {
 	return "local"
+}
+
+func (l *Localipfs) readerFor(file string) (io.ReadCloser, error) {
+	return os.OpenFile(filepath.Join(l.dir, file), os.O_RDONLY, 0)
 }

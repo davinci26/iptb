@@ -10,6 +10,7 @@ all: iptb plugins
 
 iptb:
 	go build
+.PHONY: iptb # let go figure it out
 
 CLEAN += iptb
 

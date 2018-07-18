@@ -3,12 +3,37 @@ package ipfs
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/gxed/errors"
 	"github.com/ipfs/iptb/testbed/interfaces"
 	"github.com/multiformats/go-multiaddr"
 )
+
+func ReadLogs(l testbedi.TestbedNode) (io.ReadCloser, error) {
+	addr, err := l.APIAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO(tperson) ipv6
+	ip, err := addr.ValueForProtocol(multiaddr.P_IP4)
+	if err != nil {
+		return nil, err
+	}
+	pt, err := addr.ValueForProtocol(multiaddr.P_TCP)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get(fmt.Sprintf("http://%s:%s/api/v0/log/tail", ip, pt))
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Body, nil
+}
 
 type BW struct {
 	TotalIn  int
