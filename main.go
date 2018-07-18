@@ -333,37 +333,37 @@ var startCmd = cli.Command{
 			return err
 		}
 
+		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
-			nodes, err := parseRange(c.Args()[0])
+			ndlist, err := parseRange(c.Args()[0])
 			if err != nil {
 				return err
 			}
 
-			for _, n := range nodes {
+			for _, n := range ndlist {
 				nd, err := tb.LoadNode(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				_, err = nd.Start(context.TODO(), extra...)
-				if err != nil {
-					fmt.Println("failed to start node: ", err)
-				}
+				nodes = append(nodes, nd)
 			}
-			return nil
 		} else {
-			nodes, err := tb.LoadNodes()
+			var err error
+
+			nodes, err = tb.LoadNodes()
 			if err != nil {
 				return err
 			}
-			for _, n := range nodes {
-				_, err := n.Start(context.TODO(), extra...)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
 		}
+
+		for _, n := range nodes {
+			_, err := n.Start(context.TODO(), extra...)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	},
 }
 
@@ -377,37 +377,37 @@ var killCmd = cli.Command{
 			return err
 		}
 
+		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
-			nodes, err := parseRange(c.Args()[0])
+			ndlist, err := parseRange(c.Args()[0])
 			if err != nil {
-				return fmt.Errorf("failed to parse node number: %s", err)
+				return err
 			}
 
-			for _, n := range nodes {
+			for _, n := range ndlist {
 				nd, err := tb.LoadNode(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Stop(context.TODO(), false)
-				if err != nil {
-					fmt.Println("failed to kill node: ", err)
-				}
+				nodes = append(nodes, nd)
 			}
-			return nil
 		} else {
-			nodes, err := tb.LoadNodes()
+			var err error
+
+			nodes, err = tb.LoadNodes()
 			if err != nil {
 				return err
 			}
-			for _, n := range nodes {
-				err := n.Stop(context.TODO(), false)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
 		}
+
+		for _, n := range nodes {
+			err := n.Stop(context.TODO(), false)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	},
 }
 
@@ -426,46 +426,42 @@ var restartCmd = cli.Command{
 			return err
 		}
 
+		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
-			nodes, err := parseRange(c.Args()[0])
+			ndlist, err := parseRange(c.Args()[0])
 			if err != nil {
 				return err
 			}
 
-			for _, n := range nodes {
+			for _, n := range ndlist {
 				nd, err := tb.LoadNode(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
 
-				err = nd.Stop(context.TODO(), false)
-				if err != nil {
-					fmt.Println("restart: failed to kill node: ", err)
-				}
-
-				_, err = nd.Start(context.TODO())
-				if err != nil {
-					fmt.Println("restart: failed to start node again: ", err)
-				}
+				nodes = append(nodes, nd)
 			}
-			return nil
 		} else {
-			nodes, err := tb.LoadNodes()
+			var err error
+
+			nodes, err = tb.LoadNodes()
 			if err != nil {
 				return err
 			}
-			for _, n := range nodes {
-				err := n.Stop(context.TODO(), false)
-				if err != nil {
-					return err
-				}
-				_, err = n.Start(context.TODO())
-				if err != nil {
-					return err
-				}
-			}
-			return nil
 		}
+
+		for _, n := range nodes {
+			err := n.Stop(context.TODO(), false)
+			if err != nil {
+				return err
+			}
+			_, err = n.Start(context.TODO())
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	},
 }
 
