@@ -114,7 +114,7 @@ func (tb *testbed) NodesFromSpecs(specs []*NodeSpec) ([]testbedi.TestbedNode, er
 	return out, nil
 }
 
-func (tb *testbed) InitSpecs(count int, typ, deploy, bin string) ([]*NodeSpec, error) {
+func (tb *testbed) InitSpecs(count int, typ, deploy string, attrs map[string]interface{}) ([]*NodeSpec, error) {
 	var specs []*NodeSpec
 
 	for i := 0; i < count; i++ {
@@ -130,7 +130,7 @@ func (tb *testbed) InitSpecs(count int, typ, deploy, bin string) ([]*NodeSpec, e
 			Type:       typ,
 			Deployment: deploy,
 			Dir:        dir,
-			BinPath:    bin,
+			Extra:      attrs,
 		}
 
 		specs = append(specs, spec)

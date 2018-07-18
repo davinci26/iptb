@@ -42,11 +42,24 @@ const (
 )
 
 func init() {
-	NewNode = func(binpath, dir string) testbedi.TestbedNode {
+	NewNode = func(dir string, extras map[string]interface{}) (testbedi.TestbedNode, error) {
+		var binpath string
+
+		if v, ok := extras["bin"]; ok {
+			binpath, ok = v.(string)
+
+			if !ok {
+				return nil, fmt.Errorf("Extra `bin` should be a string")
+			}
+
+		} else {
+			return nil, fmt.Errorf("No `bin` provided")
+		}
+
 		return &Localipfs{
 			dir:     dir,
 			binpath: binpath,
-		}
+		}, nil
 	}
 
 	GetAttrList = func() []string {

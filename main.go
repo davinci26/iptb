@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os/exec"
 
 	"context"
 	"os"
@@ -87,7 +86,10 @@ func main() {
 
 		connectCmd,
 
-		attrCmd,
+		attrGetCmd,
+		attrSetCmd,
+		attrListCmd,
+
 		logsCmd,
 		eventsCmd,
 
@@ -101,6 +103,21 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func extrasToMap(extrasraw []string) (map[string]interface{}, error) {
+	extras := make(map[string]interface{})
+	for _, extra := range extrasraw {
+		parts := strings.Split(extra, ",")
+
+		if len(parts) == 1 {
+			extras[parts[0]] = "true"
+		} else {
+			extras[parts[0]] = strings.Join(parts[1:], ",")
+		}
+	}
+
+	return extras, nil
 }
 
 var createNodespecCmd = cli.Command{
@@ -123,6 +140,10 @@ var createNodespecCmd = cli.Command{
 			Name:  "bin",
 			Usage: "path to the binary",
 		},
+		cli.StringSliceFlag{
+			Name:  "extra",
+			Usage: "specify addition information for the spec",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		if c.Int("count") == 0 {
@@ -140,15 +161,10 @@ var createNodespecCmd = cli.Command{
 			os.Exit(1)
 		}
 
-		binPath := c.String("bin")
-
-		if len(binPath) == 0 {
-			path, err := exec.LookPath(c.String("type"))
-			if err != nil {
-				fmt.Printf("please specify a bin, or make sure %s is in your PATH: '%s init -bin /tmp/ipfs'\n", c.String("type"), os.Args[0])
-				os.Exit(1)
-			}
-			binPath = path
+		extrasraw := c.StringSlice("extra")
+		extras, err := extrasToMap(extrasraw)
+		if err != nil {
+			return err
 		}
 
 		// Setup testbed
@@ -164,7 +180,7 @@ var createNodespecCmd = cli.Command{
 
 		// Initalize specs
 		// InitSpecs(count, type, deployment, etc)
-		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), binPath)
+		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), extras)
 		if err != nil {
 			return err
 		}
@@ -228,9 +244,9 @@ var initCmd = cli.Command{
 			Name:  "deployment",
 			Usage: "how to deploy node (local)",
 		},
-		cli.StringFlag{
-			Name:  "bin",
-			Usage: "path to the binary",
+		cli.StringSliceFlag{
+			Name:  "extra",
+			Usage: "specify addition information for the spec",
 		},
 	},
 	Action: func(c *cli.Context) error {
@@ -249,15 +265,10 @@ var initCmd = cli.Command{
 			os.Exit(1)
 		}
 
-		binPath := c.String("bin")
-
-		if len(binPath) == 0 {
-			path, err := exec.LookPath(c.String("type"))
-			if err != nil {
-				fmt.Printf("please specify a bin, or make sure %s is in your PATH: '%s init -bin /tmp/ipfs'\n", c.String("type"), os.Args[0])
-				os.Exit(1)
-			}
-			binPath = path
+		extrasraw := c.StringSlice("extra")
+		extras, err := extrasToMap(extrasraw)
+		if err != nil {
+			return err
 		}
 
 		// Setup testbed
@@ -273,7 +284,7 @@ var initCmd = cli.Command{
 
 		// Initalize specs
 		// InitSpecs(count, type, deployment, etc)
-		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), binPath)
+		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), extras)
 		if err != nil {
 			return err
 		}
@@ -541,18 +552,8 @@ var connectCmd = cli.Command{
 	},
 }
 
-var attrCmd = cli.Command{
-	Name:  "attr",
-	Usage: "get / set attrs",
-	Subcommands: []cli.Command{
-		getCmd,
-		listCmd,
-		setCmd,
-	},
-}
-
-var listCmd = cli.Command{
-	Name:  "list",
+var attrListCmd = cli.Command{
+	Name:  "attr-list",
 	Usage: "list attrs for a given type and deployment",
 	Action: func(c *cli.Context) error {
 		tb, err := util.NewTestbed()
@@ -589,8 +590,8 @@ var listCmd = cli.Command{
 	},
 }
 
-var getCmd = cli.Command{
-	Name:        "get",
+var attrGetCmd = cli.Command{
+	Name:        "attr-get",
 	Usage:       "get an attribute of the given node",
 	Description: `Given an attribute name and a node number, prints the value of the attribute for the given node.`,
 	Action: func(c *cli.Context) error {
@@ -600,8 +601,8 @@ var getCmd = cli.Command{
 		}
 
 		showUsage := func(w io.Writer) {
-			fmt.Fprintln(w, "iptb attr get [attr] [node]")
-			fmt.Fprintln(w, "Use iptb attr list [node] to see a list")
+			fmt.Fprintln(w, "iptb attr-get [attr] [node]")
+			fmt.Fprintln(w, "Use iptb attr-list [node] to see a list")
 		}
 
 		switch len(c.Args()) {
@@ -619,7 +620,7 @@ var getCmd = cli.Command{
 			handleErr("error getting attribute: ", err)
 			fmt.Println(val)
 		default:
-			fmt.Fprintln(os.Stderr, "'iptb get' accepts exactly 2 arguments")
+			fmt.Fprintln(os.Stderr, "'iptb-get' accepts exactly 2 arguments")
 			showUsage(os.Stderr)
 			os.Exit(1)
 		}
@@ -627,8 +628,8 @@ var getCmd = cli.Command{
 	},
 }
 
-var setCmd = cli.Command{
-	Name:  "set",
+var attrSetCmd = cli.Command{
+	Name:  "attr-set",
 	Usage: "set an attribute of the given node",
 	Action: func(c *cli.Context) error {
 		tb, err := util.NewTestbed()
@@ -655,7 +656,7 @@ var setCmd = cli.Command{
 				}
 			}
 		default:
-			fmt.Fprintln(os.Stderr, "'iptb attr set' accepts exactly 3 arguments")
+			fmt.Fprintln(os.Stderr, "'iptb attr-set' accepts exactly 3 arguments")
 			os.Exit(1)
 		}
 		return nil

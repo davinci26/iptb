@@ -104,9 +104,20 @@ func (ns *NodeSpec) Load() (testbedi.TestbedNode, error) {
 	pluginName := fmt.Sprintf("%s%s", ns.Deployment, ns.Type)
 
 	if plg, ok := plugins[pluginName]; ok {
-		node := plg.NewNode(ns.BinPath, ns.Dir)
-		return node, nil
+		return plg.NewNode(ns.Dir, ns.Extra)
 	}
 
 	return nil, fmt.Errorf("Could not find plugin %s", pluginName)
+}
+
+func (ns *NodeSpec) SetExtra(attr string, val interface{}) {
+	ns.Extra[attr] = val
+}
+
+func (ns *NodeSpec) GetExtra(attr string) (interface{}, error) {
+	if v, ok := ns.Extra[attr]; ok {
+		return v, nil
+	}
+
+	return nil, fmt.Errorf("Extra not set")
 }

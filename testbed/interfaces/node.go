@@ -9,7 +9,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-type NewNodeFunc func(binpath, dir string) TestbedNode
+type NewNodeFunc func(dir string, extras map[string]interface{}) (TestbedNode, error)
 type GetAttrListFunc func() []string
 type GetAttrDescFunc func(attr string) (string, error)
 
