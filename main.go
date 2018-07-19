@@ -1,22 +1,15 @@
 package main
 
 import (
-<<<<<<< HEAD
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
-=======
-	"errors"
-	"fmt"
-	"io"
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-<<<<<<< HEAD
 	"time"
 
 	util "github.com/ipfs/iptb/util"
@@ -45,14 +38,6 @@ func (res Results) ResultsSave() {
 	}
 }
 
-=======
-
-	util "github.com/ipfs/iptb/util"
-
-	cli "github.com/urfave/cli"
-)
-
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 func parseRange(s string) ([]int, error) {
 	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
 		ranges := strings.Split(s[1:len(s)-1], ",")
@@ -124,20 +109,13 @@ func main() {
 		shellCmd,
 		startCmd,
 		runCmd,
-<<<<<<< HEAD
 		distCmd,
-=======
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 		logsCmd,
 	}
 
 	err := app.Run(os.Args)
 	if err != nil {
-<<<<<<< HEAD
 		fmt.Println("I was here with %s", err)
-=======
-		fmt.Println(err)
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 		os.Exit(1)
 	}
 }
@@ -189,10 +167,7 @@ var initCmd = cli.Command{
 			fmt.Printf("please specify number of nodes: '%s init -n 10'\n", os.Args[0])
 			os.Exit(1)
 		}
-<<<<<<< HEAD
 		fmt.Println("Initializing users...")
-=======
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 		cfg := &util.InitCfg{
 			Bootstrap: c.String("bootstrap"),
 			Force:     c.Bool("f"),
@@ -227,10 +202,7 @@ var startCmd = cli.Command{
 	Action: func(c *cli.Context) error {
 		var extra []string
 		args := c.String("args")
-<<<<<<< HEAD
 		fmt.Print("Starting...")
-=======
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 		if len(args) > 0 {
 			extra = strings.Fields(args)
 		}
@@ -569,7 +541,6 @@ var runCmd = cli.Command{
 	},
 }
 
-<<<<<<< HEAD
 var distCmd = cli.Command{
 	Name:            "dist",
 	Usage:           "distribute a file to all other nodes",
@@ -623,8 +594,6 @@ var distCmd = cli.Command{
 	},
 }
 
-=======
->>>>>>> 5c546a547fb42cdd16a7ee9b8508986dc92a2222
 var logsCmd = cli.Command{
 	Name:  "logs",
 	Usage: "shows logs of given node(s), use '*' for all nodes",
