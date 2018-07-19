@@ -20,7 +20,7 @@ type TestbedNode interface {
 	Init(ctx context.Context, agrs ...string) (TBOutput, error)
 
 	// Starts the node
-	Start(ctx context.Context, args ...string) (TBOutput, error)
+	Start(ctx context.Context, args ...string) error
 
 	// Stops the node
 	Stop(ctx context.Context, wait bool) error

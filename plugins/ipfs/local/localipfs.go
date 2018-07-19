@@ -26,7 +26,7 @@ import (
 	serial "github.com/ipfs/go-ipfs/repo/fsrepo/serialize"
 )
 
-var ErrTimeout = errors.New("timeout")
+var errTimeout = errors.New("timeout")
 
 var PluginName = "localipfs"
 
@@ -34,178 +34,37 @@ var NewNode testbedi.NewNodeFunc
 var GetAttrDesc testbedi.GetAttrDescFunc
 var GetAttrList testbedi.GetAttrListFunc
 
-const (
-	attrId    = "id"
-	attrPath  = "path"
-	attrBwIn  = "bw_in"
-	attrBwOut = "bw_out"
-)
-
 func init() {
 	NewNode = func(dir string, extras map[string]interface{}) (testbedi.TestbedNode, error) {
-		var binpath string
-
-		if v, ok := extras["bin"]; ok {
-			binpath, ok = v.(string)
-
-			if !ok {
-				return nil, fmt.Errorf("Extra `bin` should be a string")
-			}
-
-		} else {
-			return nil, fmt.Errorf("No `bin` provided")
+		if _, err := exec.LookPath("ipfs"); err != nil {
+			return nil, err
 		}
 
 		return &Localipfs{
-			dir:     dir,
-			binpath: binpath,
+			dir: dir,
 		}, nil
+
 	}
 
 	GetAttrList = func() []string {
-		return []string{attrId, attrPath, attrBwIn, attrBwOut}
+		return ipfs.GetAttrList()
 	}
 
 	GetAttrDesc = func(attr string) (string, error) {
-		switch attr {
-		case attrId:
-			return "node ID", nil
-		case attrPath:
-			return "node IPFS_PATH", nil
-		case attrBwIn:
-			return "node input bandwidth", nil
-		case attrBwOut:
-			return "node output bandwidth", nil
-		default:
-			return "", errors.New("unrecognized attribute")
-		}
+		return ipfs.GetAttrDesc(attr)
 	}
 }
 
 type Localipfs struct {
-	binpath    string
 	dir        string
 	peerid     *cid.Cid
-	apiaddr    *multiaddr.Multiaddr
+	apiaddr    multiaddr.Multiaddr
 	swarmaddrs []multiaddr.Multiaddr
-}
-
-func (l *Localipfs) signalAndWait(p *os.Process, waitch <-chan struct{}, signal os.Signal, t time.Duration) error {
-	err := p.Signal(signal)
-	if err != nil {
-		return fmt.Errorf("error killing daemon %s: %s\n", l.dir, err)
-	}
-
-	select {
-	case <-waitch:
-		return nil
-	case <-time.After(t):
-		return ErrTimeout
-	}
-}
-
-/*
-func Bootstrap(nodes []testbedi.TestbedNode, port uint) error {
-	leader := nodes[0]
-
-	icfg, err := leader.GetConfig()
-	if err != nil {
-		return err
-	}
-
-	lcfg := icfg.(config.Config)
-
-	lcfg.Bootstrap = nil
-	lcfg.Addresses.Swarm = []string{fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", 0)}
-	lcfg.Addresses.API = fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port)
-	lcfg.Addresses.Gateway = ""
-	lcfg.Discovery.MDNS.Enabled = false
-
-	err = leader.WriteConfig(lcfg)
-	if err != nil {
-		return err
-	}
-
-	ba := fmt.Sprintf("%s/ipfs/%s", bcfg.Addresses.Swarm[0], bcfg.Identity.PeerID)
-	ba = strings.Replace(ba, "0.0.0.0", "127.0.0.1", -1)
-
-	for i, nd := range nodes[1:] {
-		icfg, err := nd.GetConfig()
-		if err != nil {
-			return err
-		}
-
-		lcfg := icfg.(config.Config)
-
-		lcfg.Bootstrap = []string{ba}
-		lcfg.Addresses.Swarm = []string{fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", 0)}
-		lcfg.Addresses.API = fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port+i+1)
-		lcfg.Addresses.Gateway = ""
-		lcfg.Discovery.MDNS.Enabled = false
-
-		err = nd.WriteConfig(lcfg)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-*/
-
-func (l *Localipfs) getPID() (int, error) {
-	b, err := ioutil.ReadFile(filepath.Join(l.dir, "daemon.pid"))
-	if err != nil {
-		return -1, err
-	}
-
-	return strconv.Atoi(string(b))
-}
-
-func (l *Localipfs) isAlive() (bool, error) {
-	pid, err := l.getPID()
-	if os.IsNotExist(err) {
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false, nil
-	}
-
-	err = proc.Signal(syscall.Signal(0))
-	if err == nil {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func (l *Localipfs) env() ([]string, error) {
-	envs := os.Environ()
-	dir := l.dir
-	repopath := "IPFS_PATH=" + dir
-
-	for i, e := range envs {
-		p := strings.Split(e, "=")
-		if p[0] == "IPFS_PATH" {
-			envs[i] = repopath
-			return envs, nil
-		}
-	}
-
-	return append(envs, repopath), nil
 }
 
 /// TestbedNode Interface
 
 func (l *Localipfs) Init(ctx context.Context, agrs ...string) (testbedi.TBOutput, error) {
-	if err := os.MkdirAll(l.dir, 0755); err != nil {
-		return nil, err
-	}
-
 	agrs = append([]string{"init"}, agrs...)
 	output, oerr := l.RunCmd(ctx, agrs...)
 
@@ -230,36 +89,36 @@ func (l *Localipfs) Init(ctx context.Context, agrs ...string) (testbedi.TBOutput
 	return output, oerr
 }
 
-func (l *Localipfs) Start(ctx context.Context, args ...string) (testbedi.TBOutput, error) {
+func (l *Localipfs) Start(ctx context.Context, args ...string) error {
 	alive, err := l.isAlive()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if alive {
-		return nil, fmt.Errorf("node is already running")
+		return fmt.Errorf("node is already running")
 	}
 
 	dir := l.dir
 	dargs := append([]string{"daemon"}, args...)
-	cmd := exec.Command(l.binpath, dargs...)
+	cmd := exec.Command("ipfs", dargs...)
 	cmd.Dir = dir
 
 	cmd.Env, err = l.env()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	iptbutil.SetupOpt(cmd)
 
 	stdout, err := os.Create(filepath.Join(dir, "daemon.stdout"))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	stderr, err := os.Create(filepath.Join(dir, "daemon.stderr"))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	cmd.Stdout = stdout
@@ -267,17 +126,18 @@ func (l *Localipfs) Start(ctx context.Context, args ...string) (testbedi.TBOutpu
 
 	err = cmd.Start()
 	if err != nil {
-		return nil, err
+		return err
 	}
+
 	pid := cmd.Process.Pid
 
 	l.Infof("Started daemon %s, pid = %d\n", dir, pid)
 	err = ioutil.WriteFile(filepath.Join(dir, "daemon.pid"), []byte(fmt.Sprint(pid)), 0666)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (l *Localipfs) Stop(ctx context.Context, wait bool) error {
@@ -304,19 +164,19 @@ func (l *Localipfs) Stop(ctx context.Context, wait bool) error {
 		}
 	}()
 
-	if err := l.signalAndWait(p, waitch, syscall.SIGTERM, 1*time.Second); err != ErrTimeout {
+	if err := l.signalAndWait(p, waitch, syscall.SIGTERM, 1*time.Second); err != errTimeout {
 		return err
 	}
 
-	if err := l.signalAndWait(p, waitch, syscall.SIGTERM, 2*time.Second); err != ErrTimeout {
+	if err := l.signalAndWait(p, waitch, syscall.SIGTERM, 2*time.Second); err != errTimeout {
 		return err
 	}
 
-	if err := l.signalAndWait(p, waitch, syscall.SIGQUIT, 5*time.Second); err != ErrTimeout {
+	if err := l.signalAndWait(p, waitch, syscall.SIGQUIT, 5*time.Second); err != errTimeout {
 		return err
 	}
 
-	if err := l.signalAndWait(p, waitch, syscall.SIGKILL, 5*time.Second); err != ErrTimeout {
+	if err := l.signalAndWait(p, waitch, syscall.SIGKILL, 5*time.Second); err != errTimeout {
 		return err
 	}
 
@@ -342,16 +202,9 @@ func (l *Localipfs) RunCmdWithStdin(ctx context.Context, stdin io.Reader, args .
 		return nil, fmt.Errorf("error getting env: %s", err)
 	}
 
-	bin := l.binpath
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) //TODO(tperson)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, "ipfs", args...)
 	cmd.Env = env
 	cmd.Stdin = stdin
-
-	l.Infof("%#v", args)
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -413,10 +266,19 @@ func (l *Localipfs) Shell(ctx context.Context, nodes []testbedi.TestbedNode) err
 		return fmt.Errorf("couldnt find shell!")
 	}
 
+	if len(os.Getenv("IPFS_PATH")) != 0 {
+		// If the users shell sets IPFS_PATH, it will just be overridden by the shell again
+		return fmt.Errorf("Your shell has IPFS_PATH set, please unset before trying to use iptb shell")
+	}
+
 	nenvs, err := l.env()
 	if err != nil {
 		return err
 	}
+
+	// TODO(tperson): It would be great if we could guarantee that the shell
+	// is using the same binary. However, the users shell may prepend anything
+	// we change in the PATH
 
 	for i, n := range nodes {
 		peerid, err := n.PeerID()
@@ -447,58 +309,22 @@ func (l *Localipfs) Errorf(format string, args ...interface{}) {
 
 func (l *Localipfs) APIAddr() (multiaddr.Multiaddr, error) {
 	if l.apiaddr != nil {
-		return *l.apiaddr, nil
+		return l.apiaddr, nil
 	}
 
-	dir := l.dir
+	var err error
+	l.apiaddr, err = ipfs.GetAPIAddrFromRepo(l.dir)
 
-	addrb, err := ioutil.ReadFile(filepath.Join(dir, "api"))
-	if err != nil {
-		return nil, err
-	}
-
-	maddr, err := multiaddr.NewMultiaddr(string(addrb))
-	if err != nil {
-		return nil, err
-	}
-
-	l.apiaddr = &maddr
-
-	return *l.apiaddr, nil
+	return l.apiaddr, err
 }
 
 func (l *Localipfs) SwarmAddrs() ([]multiaddr.Multiaddr, error) {
-	pcid, err := l.PeerID()
-	if err != nil {
-		return nil, err
+	if l.swarmaddrs != nil {
+		return l.swarmaddrs, nil
 	}
 
-	output, err := l.RunCmd(context.TODO(), "swarm", "addrs", "local")
-	if err != nil {
-		return nil, err
-	}
-
-	bs, err := ioutil.ReadAll(output.Stdout())
-	if err != nil {
-		return nil, err
-	}
-
-	straddrs := strings.Split(string(bs), "\n")
-
-	var maddrs []multiaddr.Multiaddr
-	for _, straddr := range straddrs {
-		fstraddr := fmt.Sprintf("%s/ipfs/%s", straddr, pcid)
-		maddr, err := multiaddr.NewMultiaddr(fstraddr)
-		if err != nil {
-			return nil, err
-		}
-
-		maddrs = append(maddrs, maddr)
-	}
-
-	return maddrs, nil
-
-	l.swarmaddrs = maddrs
+	var err error
+	l.swarmaddrs, err = ipfs.SwarmAddrs(l)
 
 	return l.swarmaddrs, err
 }
@@ -512,19 +338,8 @@ func (l *Localipfs) PeerID() (*cid.Cid, error) {
 		return l.peerid, nil
 	}
 
-	icfg, err := l.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	lcfg := icfg.(*config.Config)
-
-	pcid, err := cid.Decode(lcfg.Identity.PeerID)
-	if err != nil {
-		return nil, err
-	}
-
-	l.peerid = pcid
+	var err error
+	l.peerid, err = ipfs.GetPeerID(l)
 
 	return l.peerid, err
 }
@@ -538,30 +353,7 @@ func (l *Localipfs) GetAttrDesc(attr string) (string, error) {
 }
 
 func (l *Localipfs) GetAttr(attr string) (string, error) {
-	switch attr {
-	case attrId:
-		pcid, err := l.PeerID()
-		if err != nil {
-			return "", err
-		}
-		return pcid.String(), nil
-	case attrPath:
-		return l.dir, nil
-	case attrBwIn:
-		bw, err := ipfs.GetBW(l)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprint(bw.TotalIn), nil
-	case attrBwOut:
-		bw, err := ipfs.GetBW(l)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprint(bw.TotalOut), nil
-	default:
-		return "", errors.New("unrecognized attribute: " + attr)
-	}
+	return ipfs.GetAttr(l, attr)
 }
 
 func (l *Localipfs) SetAttr(string, string) error {
@@ -598,4 +390,61 @@ func (l *Localipfs) Deployment() string {
 
 func (l *Localipfs) readerFor(file string) (io.ReadCloser, error) {
 	return os.OpenFile(filepath.Join(l.dir, file), os.O_RDONLY, 0)
+}
+
+func (l *Localipfs) signalAndWait(p *os.Process, waitch <-chan struct{}, signal os.Signal, t time.Duration) error {
+	err := p.Signal(signal)
+	if err != nil {
+		return fmt.Errorf("error killing daemon %s: %s\n", l.dir, err)
+	}
+
+	select {
+	case <-waitch:
+		return nil
+	case <-time.After(t):
+		return errTimeout
+	}
+}
+
+func (l *Localipfs) getPID() (int, error) {
+	b, err := ioutil.ReadFile(filepath.Join(l.dir, "daemon.pid"))
+	if err != nil {
+		return -1, err
+	}
+
+	return strconv.Atoi(string(b))
+}
+
+func (l *Localipfs) isAlive() (bool, error) {
+	pid, err := l.getPID()
+	if os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false, nil
+	}
+
+	err = proc.Signal(syscall.Signal(0))
+	if err == nil {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (l *Localipfs) env() ([]string, error) {
+	envs := os.Environ()
+	ipfspath := "IPFS_PATH=" + l.dir
+
+	for i, e := range envs {
+		if strings.HasPrefix(e, "IPFS_PATH=") {
+			envs[i] = ipfspath
+			return envs, nil
+		}
+	}
+	return append(envs), nil
 }

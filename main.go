@@ -362,7 +362,7 @@ var startCmd = cli.Command{
 		}
 
 		for _, n := range nodes {
-			_, err := n.Start(context.TODO(), extra...)
+			err := n.Start(context.TODO(), extra...)
 			if err != nil {
 				return err
 			}
@@ -453,7 +453,8 @@ var restartCmd = cli.Command{
 			if err != nil {
 				return err
 			}
-			_, err = n.Start(context.TODO())
+
+			err = n.Start(context.TODO())
 			if err != nil {
 				return err
 			}
