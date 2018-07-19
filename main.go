@@ -6,15 +6,35 @@ import (
 
 	"context"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	util "github.com/ipfs/iptb/testbed"
+	testbed "github.com/ipfs/iptb/testbed"
 	"github.com/ipfs/iptb/testbed/interfaces"
 
 	cli "github.com/urfave/cli"
 )
+
+var testbeddir string
+
+func init() {
+	tbd := os.Getenv("IPTB_ROOT")
+	if len(tbd) != 0 {
+		testbeddir = tbd
+		return
+	}
+
+	home := os.Getenv("HOME")
+	if len(home) == 0 {
+		fmt.Println("environment variable HOME is not set")
+		os.Exit(1)
+		return
+	}
+
+	testbeddir = path.Join(home, "testbed")
+}
 
 func parseRange(s string) ([]int, error) {
 	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
@@ -168,26 +188,26 @@ var createNodespecCmd = cli.Command{
 		}
 
 		// Setup testbed
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		// Check if already init
-		if err := tb.AlreadyInitCheck(false); err != nil {
+		if err := testbed.AlreadyInitCheck(tb.Dir(), false); err != nil {
 			return err
 		}
 
 		// Initalize specs
 		// InitSpecs(count, type, deployment, etc)
-		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), extras)
+		count := c.Int("count")
+		typ := c.String("type")
+		deployment := c.String("deployment")
+
+		specs, err := testbed.BuildSpecs(tb.Dir(), count, typ, deployment, extras)
 		if err != nil {
 			return err
 		}
 
 		// Write specs out to testbed
-		// WriteNodeSpecs(specs)
-		if err := tb.WriteNodeSpecs(specs); err != nil {
+		if err := testbed.WriteNodeSpecs(tb.Dir(), specs); err != nil {
 			return err
 		}
 
@@ -201,26 +221,14 @@ var initNodespecCmd = cli.Command{
 	Flags: []cli.Flag{},
 	Action: func(c *cli.Context) error {
 		// Setup testbed
-		tb, err := util.NewTestbed()
+		tb := testbed.NewTestbed(testbeddir)
+
+		nodes, err := tb.Nodes()
 		if err != nil {
-			return err
+			return nil
 		}
 
-		specs, err := tb.ReadNodeSpecs()
-		if err != nil {
-			return err
-		}
-
-		// Create nodes from specs
-		// NodesFromSpecs(specs)
-		nodes, err := tb.NodesFromSpecs(specs)
-		if err != nil {
-			return err
-		}
-
-		// Run node.Init() for all nodes
-		// InitNodes()
-		return tb.InitNodes(nodes)
+		return testbed.InitNodes(nodes)
 	},
 }
 
@@ -272,39 +280,38 @@ var initCmd = cli.Command{
 		}
 
 		// Setup testbed
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		// Check if already init
-		if err := tb.AlreadyInitCheck(c.Bool("f")); err != nil {
+		if err := testbed.AlreadyInitCheck(tb.Dir(), c.Bool("f")); err != nil {
 			return err
 		}
 
-		// Initalize specs
-		// InitSpecs(count, type, deployment, etc)
-		specs, err := tb.InitSpecs(c.Int("count"), c.String("type"), c.String("deployment"), extras)
-		if err != nil {
-			return err
-		}
+		count := c.Int("count")
+		typ := c.String("type")
+		deployment := c.String("deployment")
 
-		// Create nodes from specs
-		// NodesFromSpecs(specs)
-		nodes, err := tb.NodesFromSpecs(specs)
+		specs, err := testbed.BuildSpecs(tb.Dir(), count, typ, deployment, extras)
 		if err != nil {
 			return err
 		}
 
 		// Write specs out to testbed
 		// WriteNodeSpecs(specs)
-		if err := tb.WriteNodeSpecs(specs); err != nil {
+		if err := testbed.WriteNodeSpecs(tb.Dir(), specs); err != nil {
+			return err
+		}
+
+		// Create nodes from specs
+		// NodesFromSpecs(specs)
+		nodes, err := tb.Nodes()
+		if err != nil {
 			return err
 		}
 
 		// Run node.Init() for all nodes
 		// InitNodes()
-		return tb.InitNodes(nodes)
+		return testbed.InitNodes(nodes)
 	},
 }
 
@@ -328,10 +335,7 @@ var startCmd = cli.Command{
 			extra = strings.Fields(args)
 		}
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
@@ -341,9 +345,9 @@ var startCmd = cli.Command{
 			}
 
 			for _, n := range ndlist {
-				nd, err := tb.LoadNode(n)
+				nd, err := tb.Node(n)
 				if err != nil {
-					return fmt.Errorf("failed to load local node: %s\n", err)
+					return fmt.Errorf("failed to load node: %s\n", err)
 				}
 
 				nodes = append(nodes, nd)
@@ -351,7 +355,7 @@ var startCmd = cli.Command{
 		} else {
 			var err error
 
-			nodes, err = tb.LoadNodes()
+			nodes, err = tb.Nodes()
 			if err != nil {
 				return err
 			}
@@ -372,10 +376,7 @@ var killCmd = cli.Command{
 	Usage:   "kill a given node (or all nodes if none specified)",
 	Aliases: []string{"stop"},
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
@@ -385,7 +386,7 @@ var killCmd = cli.Command{
 			}
 
 			for _, n := range ndlist {
-				nd, err := tb.LoadNode(n)
+				nd, err := tb.Node(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
@@ -395,7 +396,7 @@ var killCmd = cli.Command{
 		} else {
 			var err error
 
-			nodes, err = tb.LoadNodes()
+			nodes, err = tb.Nodes()
 			if err != nil {
 				return err
 			}
@@ -421,10 +422,7 @@ var restartCmd = cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		var nodes []testbedi.TestbedNode
 		if c.Args().Present() {
@@ -434,7 +432,7 @@ var restartCmd = cli.Command{
 			}
 
 			for _, n := range ndlist {
-				nd, err := tb.LoadNode(n)
+				nd, err := tb.Node(n)
 				if err != nil {
 					return fmt.Errorf("failed to load local node: %s\n", err)
 				}
@@ -444,7 +442,7 @@ var restartCmd = cli.Command{
 		} else {
 			var err error
 
-			nodes, err = tb.LoadNodes()
+			nodes, err = tb.Nodes()
 			if err != nil {
 				return err
 			}
@@ -483,12 +481,9 @@ NODE[x] - set to the peer ID of node x
 			return fmt.Errorf("parse err: %s", err)
 		}
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
-		nodes, err := tb.LoadNodes()
+		nodes, err := tb.Nodes()
 		if err != nil {
 			return err
 		}
@@ -508,12 +503,9 @@ var connectCmd = cli.Command{
 			os.Exit(1)
 		}
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
-		nodes, err := tb.LoadNodes()
+		nodes, err := tb.Nodes()
 		if err != nil {
 			return err
 		}
@@ -552,10 +544,7 @@ var attrListCmd = cli.Command{
 	Name:  "attr-list",
 	Usage: "list attrs for a given type and deployment",
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		showUsage := func(w io.Writer) {
 			fmt.Fprintln(w, "iptb attr list [node]")
@@ -566,7 +555,7 @@ var attrListCmd = cli.Command{
 			num, err := strconv.Atoi(c.Args().First())
 			handleErr("error parsing node number: ", err)
 
-			ln, err := tb.LoadNode(num)
+			ln, err := tb.Node(num)
 			if err != nil {
 				return err
 			}
@@ -591,10 +580,7 @@ var attrGetCmd = cli.Command{
 	Usage:       "get an attribute of the given node",
 	Description: `Given an attribute name and a node number, prints the value of the attribute for the given node.`,
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		showUsage := func(w io.Writer) {
 			fmt.Fprintln(w, "iptb attr-get [attr] [node]")
@@ -607,7 +593,7 @@ var attrGetCmd = cli.Command{
 			num, err := strconv.Atoi(c.Args()[1])
 			handleErr("error parsing node number: ", err)
 
-			ln, err := tb.LoadNode(num)
+			ln, err := tb.Node(num)
 			if err != nil {
 				return err
 			}
@@ -628,10 +614,7 @@ var attrSetCmd = cli.Command{
 	Name:  "attr-set",
 	Usage: "set an attribute of the given node",
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		switch len(c.Args()) {
 		case 3:
@@ -641,7 +624,7 @@ var attrSetCmd = cli.Command{
 			handleErr("error parsing node number: ", err)
 
 			for _, i := range nodes {
-				ln, err := tb.LoadNode(i)
+				ln, err := tb.Node(i)
 				if err != nil {
 					return err
 				}
@@ -672,7 +655,7 @@ var dumpStacksCmd = cli.Command{
 		num, err := strconv.Atoi(c.Args()[0])
 		handleErr("error parsing node number: ", err)
 
-		ln, err := util.LoadNodeN(num)
+		ln, err := testbed.LoadNodeN(num)
 		if err != nil {
 			return err
 		}
@@ -697,12 +680,9 @@ var forEachCmd = cli.Command{
 	Usage:           "run a given command on each node",
 	SkipFlagParsing: true,
 	Action: func(c *cli.Context) error {
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
-		nodes, err := tb.LoadNodes()
+		nodes, err := tb.Nodes()
 		if err != nil {
 			return err
 		}
@@ -729,12 +709,9 @@ var runCmd = cli.Command{
 			return err
 		}
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
-		nd, err := tb.LoadNode(n)
+		nd, err := tb.Node(n)
 		if err != nil {
 			return err
 		}
@@ -776,13 +753,10 @@ var logsCmd = cli.Command{
 		var nodes []testbedi.TestbedNode
 		var err error
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		if c.Args()[0] == "*" {
-			nodes, err = tb.LoadNodes()
+			nodes, err = tb.Nodes()
 			if err != nil {
 				return err
 			}
@@ -792,7 +766,7 @@ var logsCmd = cli.Command{
 				if err != nil {
 					return err
 				}
-				n, err := tb.LoadNode(i)
+				n, err := tb.Node(i)
 				if err != nil {
 					return err
 				}
@@ -849,17 +823,14 @@ var eventsCmd = cli.Command{
 			return fmt.Errorf("'iptb logs' accepts at exactly 1 argument")
 		}
 
-		tb, err := util.NewTestbed()
-		if err != nil {
-			return err
-		}
+		tb := testbed.NewTestbed(testbeddir)
 
 		num, err := strconv.Atoi(c.Args().First())
 		if err != nil {
 			return err
 		}
 
-		n, err := tb.LoadNode(num)
+		n, err := tb.Node(num)
 		if err != nil {
 			return err
 		}

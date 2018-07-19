@@ -15,20 +15,18 @@ import (
 
 type Testbed interface {
 	Name() string
+
+	// Spec returns a spec for node n
+	Spec(n int) (*NodeSpec, error)
+
+	// Specs returns all specs
+	Specs() (*NodeSpec, error)
+
+	// Node returns node n, specified by spec n
+	Node(n int) ([]testbedi.TestbedNode, error)
+
+	// Node returns all nodes, specified by all specs
 	Nodes() ([]testbedi.TestbedNode, error)
-
-	RunCmdForEach(args ...string) ([]testbedi.TBOutput, error) // most errors should be in the TBOutput
-
-	AlreadyInitCheck(force bool) error
-
-	NodesFromSpec(specs []*NodeSpec) ([]testbedi.TestbedNode, error)
-
-	InitSpecs(count int, typ, deploy, bin string) ([]*NodeSpec, error)
-	ReadNodeSpecs() ([]*NodeSpec, error)
-	WriteNodeSpecs(specs []*NodeSpec) error
-	LoadNode(n int) (testbedi.TestbedNode, error)
-	LoadNodes() ([]testbedi.TestbedNode, error)
-	NodesFromSpecs(specs []*NodeSpec) ([]testbedi.TestbedNode, error)
 
 	/****************/
 	/* Future Ideas */
@@ -40,61 +38,32 @@ type Testbed interface {
 }
 
 type testbed struct {
-	dir string
+	dir   string
+	specs []*NodeSpec
+	nodes []testbedi.TestbedNode
 }
 
-func NewTestbed() (*testbed, error) {
-	tbd, err := testBedDir()
-	if err != nil {
-		return nil, err
+func NewTestbed(dir string) testbed {
+	return testbed{
+		dir: dir,
 	}
-	return &testbed{
-		dir: tbd,
-	}, nil
 }
 
-func (tb *testbed) ReadNodeSpecs() ([]*NodeSpec, error) {
-	data, err := ioutil.ReadFile(filepath.Join(tb.dir, "nodespec"))
-	if err != nil {
-		return nil, err
-	}
-
-	var specs []*NodeSpec
-	err = json.Unmarshal(data, &specs)
-	if err != nil {
-		return nil, err
-	}
-
-	return specs, nil
+func (tb *testbed) Dir() string {
+	return tb.dir
 }
 
-func (tb *testbed) WriteNodeSpecs(specs []*NodeSpec) error {
-	err := os.MkdirAll(tb.dir, 0775)
-	if err != nil {
-		return err
-	}
-
-	fi, err := os.Create(filepath.Join(tb.dir, "nodespec"))
-	if err != nil {
-		return err
-	}
-
-	defer fi.Close()
-	err = json.NewEncoder(fi).Encode(specs)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (tb *testbed) Name() string {
+	return tb.dir
 }
 
-func (tb *testbed) AlreadyInitCheck(force bool) error {
-	if _, err := os.Stat(filepath.Join(tb.dir, "nodespec")); !os.IsNotExist(err) {
+func AlreadyInitCheck(dir string, force bool) error {
+	if _, err := os.Stat(filepath.Join(dir, "nodespec")); !os.IsNotExist(err) {
 		if !force && !iptbutil.YesNoPrompt("testbed nodes already exist, overwrite? [y/n]") {
 			return nil
 		}
 
-		err = os.RemoveAll(tb.dir)
+		err = os.RemoveAll(dir)
 		if err != nil {
 			return err
 		}
@@ -102,23 +71,12 @@ func (tb *testbed) AlreadyInitCheck(force bool) error {
 	return nil
 }
 
-func (tb *testbed) NodesFromSpecs(specs []*NodeSpec) ([]testbedi.TestbedNode, error) {
-	var out []testbedi.TestbedNode
-	for _, s := range specs {
-		nd, err := s.Load()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, nd)
-	}
-	return out, nil
-}
-
-func (tb *testbed) InitSpecs(count int, typ, deploy string, attrs map[string]interface{}) ([]*NodeSpec, error) {
+func BuildSpecs(base string, count int, typ, deploy string, extra map[string]interface{}) ([]*NodeSpec, error) {
 	var specs []*NodeSpec
 
 	for i := 0; i < count; i++ {
-		dir, err := nodeDirN(i)
+		dir := path.Join(base, fmt.Sprint(i))
+		err := os.MkdirAll(dir, 0775)
 
 		if err != nil {
 			return nil, err
@@ -130,7 +88,7 @@ func (tb *testbed) InitSpecs(count int, typ, deploy string, attrs map[string]int
 			Type:       typ,
 			Deployment: deploy,
 			Dir:        dir,
-			Extra:      attrs,
+			Extra:      extra,
 		}
 
 		specs = append(specs, spec)
@@ -139,15 +97,69 @@ func (tb *testbed) InitSpecs(count int, typ, deploy string, attrs map[string]int
 	return specs, nil
 }
 
-func nodeDirN(n int) (string, error) {
-	tbd, err := testBedDir()
+func (tb *testbed) Spec(n int) (*NodeSpec, error) {
+	specs, err := tb.Specs()
+
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return path.Join(tbd, fmt.Sprint(n)), nil
+
+	if n >= len(specs) {
+		return nil, fmt.Errorf("Spec index out of range")
+	}
+
+	return specs[n], err
 }
 
-func (tb *testbed) InitNodes(nodes []testbedi.TestbedNode) error {
+func (tb *testbed) Specs() ([]*NodeSpec, error) {
+	if tb.specs != nil {
+		return tb.specs, nil
+	}
+
+	return tb.loadSpecs()
+}
+
+func (tb *testbed) Node(n int) (testbedi.TestbedNode, error) {
+	nodes, err := tb.Nodes()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if n >= len(nodes) {
+		return nil, fmt.Errorf("Node index out of range")
+	}
+
+	return nodes[n], err
+}
+
+func (tb *testbed) Nodes() ([]testbedi.TestbedNode, error) {
+	if tb.nodes != nil {
+		return tb.nodes, nil
+	}
+
+	return tb.loadNodes()
+}
+
+func (tb *testbed) loadSpecs() ([]*NodeSpec, error) {
+	specs, err := ReadNodeSpecs(tb.dir)
+	if err != nil {
+		return nil, err
+	}
+
+	return specs, nil
+}
+
+func (tb *testbed) loadNodes() ([]testbedi.TestbedNode, error) {
+	specs, err := tb.Specs()
+	if err != nil {
+		return nil, err
+	}
+
+	return NodesFromSpecs(specs)
+}
+
+func InitNodes(nodes []testbedi.TestbedNode) error {
 	wait := sync.WaitGroup{}
 	for i, n := range nodes {
 		wait.Add(1)
@@ -166,34 +178,49 @@ func (tb *testbed) InitNodes(nodes []testbedi.TestbedNode) error {
 	return nil
 }
 
-func testBedDir() (string, error) {
-	tbd := os.Getenv("IPTB_ROOT")
-	if len(tbd) != 0 {
-		return tbd, nil
+func NodesFromSpecs(specs []*NodeSpec) ([]testbedi.TestbedNode, error) {
+	var out []testbedi.TestbedNode
+	for _, s := range specs {
+		nd, err := s.Load()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, nd)
 	}
-
-	home := os.Getenv("HOME")
-	if len(home) == 0 {
-		return "", fmt.Errorf("environment variable HOME is not set")
-	}
-
-	return path.Join(home, "testbed"), nil
+	return out, nil
 }
 
-func (tb *testbed) LoadNode(n int) (testbedi.TestbedNode, error) {
-	specs, err := tb.ReadNodeSpecs()
+func ReadNodeSpecs(dir string) ([]*NodeSpec, error) {
+	data, err := ioutil.ReadFile(filepath.Join(dir, "nodespec"))
 	if err != nil {
 		return nil, err
 	}
 
-	return specs[n].Load()
-}
-
-func (tb *testbed) LoadNodes() ([]testbedi.TestbedNode, error) {
-	specs, err := tb.ReadNodeSpecs()
+	var specs []*NodeSpec
+	err = json.Unmarshal(data, &specs)
 	if err != nil {
 		return nil, err
 	}
 
-	return tb.NodesFromSpecs(specs)
+	return specs, nil
+}
+
+func WriteNodeSpecs(dir string, specs []*NodeSpec) error {
+	err := os.MkdirAll(dir, 0775)
+	if err != nil {
+		return err
+	}
+
+	fi, err := os.Create(filepath.Join(dir, "nodespec"))
+	if err != nil {
+		return err
+	}
+
+	defer fi.Close()
+	err = json.NewEncoder(fi).Encode(specs)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
