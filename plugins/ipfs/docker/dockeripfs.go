@@ -180,9 +180,6 @@ func (l *Dockeripfs) RunCmd(ctx context.Context, args ...string) (testbedi.TBOut
 }
 
 func (l *Dockeripfs) RunCmdWithStdin(ctx context.Context, stdin io.Reader, args ...string) (testbedi.TBOutput, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) //TODO(tperson)
-	defer cancel()
-
 	id, err := l.getID()
 	if err != nil {
 		return nil, err
@@ -407,18 +404,15 @@ func (l *Dockeripfs) isAlive() (bool, error) {
 
 func (l *Dockeripfs) env() ([]string, error) {
 	envs := os.Environ()
-	dir := l.dir
-	repopath := "IPFS_PATH=" + dir
+	ipfspath := "IPFS_PATH=" + l.dir
 
 	for i, e := range envs {
-		p := strings.Split(e, "=")
-		if p[0] == "IPFS_PATH" {
-			envs[i] = repopath
+		if strings.HasPrefix(e, "IPFS_PATH=") {
+			envs[i] = ipfspath
 			return envs, nil
 		}
 	}
-
-	return append(envs, repopath), nil
+	return envs, nil
 }
 
 func (l *Dockeripfs) killContainer() error {
