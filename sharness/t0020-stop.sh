@@ -7,7 +7,7 @@ test_description="iptb stop tests"
 IPTB_ROOT=.
 
 test_expect_success "iptb init works" '
-	../bin/iptb init -n 3
+	../bin/iptb init -n 3 -type ipfs -deployment local
 '
 
 test_expect_success "iptb start works" '

@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,14 @@ var testbeddir string
 func init() {
 	tbd := os.Getenv("IPTB_ROOT")
 	if len(tbd) != 0 {
-		testbeddir = tbd
+		var err error
+
+		testbeddir, err = filepath.Abs(tbd)
+		if err != nil {
+			fmt.Printf("Could not resolve IPTB_ROOT \"%s\" to absolute path\n", tbd)
+			os.Exit(1)
+		}
+
 		return
 	}
 
@@ -30,7 +38,6 @@ func init() {
 	if len(home) == 0 {
 		fmt.Println("environment variable HOME is not set")
 		os.Exit(1)
-		return
 	}
 
 	testbeddir = path.Join(home, "testbed")

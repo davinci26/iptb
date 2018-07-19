@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gxed/errors"
 	"github.com/ipfs/go-cid"
@@ -213,4 +214,66 @@ func GetAttrDescr(attr string) (string, error) {
 	default:
 		return "", errors.New("unrecognized attribute")
 	}
+}
+
+func WaitOnAPI(l testbedi.TestbedNode) error {
+	for i := 0; i < 50; i++ {
+		err := tryAPICheck(l)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(time.Millisecond * 400)
+	}
+
+	pcid, err := l.PeerID()
+	if err != nil {
+		return err
+	}
+
+	return fmt.Errorf("node %s failed to come online in given time period", pcid)
+}
+
+func tryAPICheck(l testbedi.TestbedNode) error {
+	addr, err := l.APIAddr()
+	if err != nil {
+		return err
+	}
+
+	//TODO(tperson) ipv6
+	ip, err := addr.ValueForProtocol(multiaddr.P_IP4)
+	if err != nil {
+		return err
+	}
+	pt, err := addr.ValueForProtocol(multiaddr.P_TCP)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Get(fmt.Sprintf("http://%s:%s/api/v0/id", ip, pt))
+	if err != nil {
+		return err
+	}
+
+	out := make(map[string]interface{})
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return fmt.Errorf("liveness check failed: %s", err)
+	}
+
+	id, ok := out["ID"]
+	if !ok {
+		return fmt.Errorf("liveness check failed: ID field not present in output")
+	}
+
+	pcid, err := l.PeerID()
+	if err != nil {
+		return err
+	}
+
+	idstr := id.(string)
+	if idstr != pcid.String() {
+		return fmt.Errorf("liveness check failed: unexpected peer at endpoint")
+	}
+
+	return nil
 }

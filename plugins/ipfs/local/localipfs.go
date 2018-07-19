@@ -137,7 +137,7 @@ func (l *Localipfs) Start(ctx context.Context, args ...string) error {
 		return err
 	}
 
-	return nil
+	return ipfs.WaitOnAPI(l)
 }
 
 func (l *Localipfs) Stop(ctx context.Context, wait bool) error {
