@@ -619,12 +619,9 @@ func ConnectNodes(from, to IpfsNode, timeout string) error {
 	stump.Log("connecting %s -> %s\n", from, to)
 
 	addrs := strings.Fields(string(out))
-	fmt.Println("Addresses: ", addrs)
 	orderishAddresses(addrs)
 	for i := 0; i < len(addrs); i++ {
 		addr := addrs[i]
-		stump.Log("trying ipfs swarm connect %s", addr)
-
 		args := []string{"ipfs", "swarm", "connect", addr}
 		if timeout != "" {
 			args = append(args, "--timeout="+timeout)

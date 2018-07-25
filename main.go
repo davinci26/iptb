@@ -16,16 +16,16 @@ import (
 	cli "github.com/urfave/cli"
 )
 
-type Results struct {
-	Avg_time     float64
-	Std_Time     float64
-	Users        int
-	Date_Time    time.Time
-	TimeAnalytic []float64
-	UTP          bool
+type results struct {
+	Avg_time  float64
+	Std_Time  float64
+	Users     int
+	Date_Time time.Time
+	Results   []float64
+	UTP       bool
 }
 
-func (res Results) ResultsSave() {
+func (res results) ResultsSave() {
 
 	resultsJSON, _ := json.Marshal(res)
 	f, err := os.OpenFile("results.json", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
@@ -588,7 +588,7 @@ var distCmd = cli.Command{
 		}
 		std := math.Sqrt(sumSq / float64(len(delay)))
 		fmt.Printf("Average Time to distribute file to all nodes: %.4f\nStd Time to distribute file to all nodes %.4f\n", avg, std)
-		res := Results{avg, std, len(nodes) - 1, time.Now().UTC(), delay, false}
+		res := results{avg, std, len(nodes) - 1, time.Now().UTC(), delay, false}
 		res.ResultsSave()
 		return nil
 	},
