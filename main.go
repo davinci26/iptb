@@ -17,12 +17,12 @@ import (
 )
 
 type results struct {
-	Avg_time  float64
-	Std_Time  float64
-	Users     int
-	Date_Time time.Time
-	Results   []float64
-	UTP       bool
+	Avg_time   float64
+	Std_Time   float64
+	Users      int
+	Date_Time  time.Time
+	Results    []float64
+	DuplBlocks int
 }
 
 func (res results) ResultsSave() {
@@ -36,6 +36,34 @@ func (res results) ResultsSave() {
 	if _, err = f.WriteString(string(resultsJSON) + ",\n"); err != nil {
 		panic(err)
 	}
+}
+
+func getDupBlocksFromNode(n int) (int, error) {
+
+	nd, err := util.LoadNodeN(n)
+	if err != nil {
+		return -1, err
+	}
+
+	bstat, err := nd.RunCmd("ipfs", "bitswap", "stat")
+	if err != nil {
+		return -1, err
+	}
+
+	lines := strings.Split(bstat, "\n")
+	for _, l := range lines {
+		if strings.Contains(l, "dup blocks") {
+			fs := strings.Fields(l)
+			n, err := strconv.Atoi(fs[len(fs)-1])
+			if err != nil {
+				return -1, err
+			}
+
+			return int(n), nil
+		}
+	}
+
+	return -1, fmt.Errorf("no dup blocks field in output")
 }
 
 func parseRange(s string) ([]int, error) {
@@ -342,7 +370,6 @@ NODE[x] - set to the peer ID of node x
 		if err != nil {
 			return err
 		}
-
 		err = n.Shell()
 		handleErr("ipfs shell err: ", err)
 		return nil
@@ -572,9 +599,16 @@ var distCmd = cli.Command{
 			go util.GetFile(hash, nodes[i], ch)
 		}
 		var delay []float64
+		duplBlocks := 0
 		for i := 1; i < len(nodes); i++ {
 			val := <-ch
 			delay = append(delay, val)
+			dB, err := getDupBlocksFromNode(i)
+			if err != nil {
+				fmt.Println("Failed to Parse duplicate blocks")
+				return err
+			}
+			duplBlocks += dB
 		}
 
 		var sum float64
@@ -587,8 +621,8 @@ var distCmd = cli.Command{
 			sumSq += math.Pow((avg - f), 2)
 		}
 		std := math.Sqrt(sumSq / float64(len(delay)))
-		fmt.Printf("Average Time to distribute file to all nodes: %.4f\nStd Time to distribute file to all nodes %.4f\n", avg, std)
-		res := results{avg, std, len(nodes) - 1, time.Now().UTC(), delay, false}
+		fmt.Printf("Average Time to distribute file to all nodes: %.4f\nStd Time to distribute file to all nodes %.4f\nDuplicate Blocks: %d\n", avg, std, duplBlocks)
+		res := results{avg, std, len(nodes) - 1, time.Now().UTC(), delay, duplBlocks}
 		res.ResultsSave()
 		return nil
 	},
