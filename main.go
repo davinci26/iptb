@@ -677,6 +677,8 @@ var distCmd = cli.Command{
 		if len(hash) == 0 {
 			return errors.New("No file hash is specified")
 		}
+		// Trim whitespace just in case
+		hash = strings.TrimSpace(hash)
 		// Load all Nodes
 		nodes, err := util.LoadNodes()
 		if err != nil {

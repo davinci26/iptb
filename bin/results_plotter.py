@@ -32,7 +32,7 @@ def parse_file(filepath):
     return user_no, delay_avg, delay_std, delay_max, delay_min, results
 
 
-def plot(filepath,label,colour_):
+def plot(filepath,label,colour_,file_size):
     user_no, delay_avg, delay_std, delay_max, delay_min,_ = parse_file(filepath)
     plt.plot(user_no, delay_avg,'o--', color=colour_, label=label + " Average delay",ms=3) #, yerr = delay_std, fmt='o' )
     plt.plot(user_no, delay_max,'--', color=colour_,  label=label + " Max delay",alpha=0.3) 
@@ -44,6 +44,8 @@ def plot(filepath,label,colour_):
                      alpha=0.2 )
     plt.xlabel('Number of Nodes')
     plt.ylabel('Average delay[sec]')
+    if file_size:
+        plt.title('Average time required to distribute a {} Byte size file'.format(file_size))
 
 # USAGE: ./evaluation_scripts/results_parser.py -o ipfs-vs-BitTorrent -IPFS -BitTorrent -save
 if __name__ == '__main__':
@@ -52,15 +54,17 @@ if __name__ == '__main__':
                         help="Save output to the specified directory")
     parser.add_argument('-i', type=str, nargs='?',
                     help="Specifiy input directory")
+    
+    parser.add_argument('-size', type=str, nargs='?',
+                    help="Specifiy experiment file size")
+
     args = parser.parse_args()
     fig, ax1 = plt.subplots()
     if args.i == None:
         print("No input file is specied")
-    plot(args.i, "IPFS",'blue')
+    plot(args.i, "IPFS",'blue',args.size)
     plt.legend()
     if args.o != None:
         fig.savefig(args.o +'.png',bbox_inches='tight') 
     else:
         plt.show()
-
-

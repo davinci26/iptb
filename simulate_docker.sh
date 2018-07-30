@@ -9,17 +9,23 @@
 
 for k in `seq $1 $2 $3`
 do
-    ./iptb init -n $k -f
+    # Initalize network
+    ./iptb init -n $k -f --type=docker
+    # Start nodes
     ./iptb start
     # Create Network Topology
     ./iptb make-topology
-    # Create a random file and add it to Node 0
-    head -c 4  </dev/urandom > file.txt
+    # Create random file
+    head -c $4  </dev/urandom > file.txt
+    # Push the file to docker container
+    dockID=$(cat ~/testbed/0/dockerID)
+    docker cp file.txt $dockID:file.txt
+    # Add it to Node 0
     file=$(./iptb run 0 ipfs add -Q file.txt)
-    # Remove the file since we no longer need it
     rm file.txt
-    # Make the simulation
+    # Simulate
     ./iptb dist -hash $file
-    # Lets not burn the CPU and clean up after
-    pkill ipfs
+    pkill dockerd
 done
+# Plot results
+./bin/results_plotter.py -i results.json -size $4
