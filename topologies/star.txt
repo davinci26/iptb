@@ -1,0 +1,7 @@
+# Node Origin:Connection 1 Connection 2 .... Connection n
+0:1,2,3,4,5
+1:0
+2:0
+3:0
+4:0
+5:0
