@@ -6,10 +6,11 @@ import argparse
 def parse_single_line(line, filepath):
     d = json.loads(line)
     users = int(d['Users'])
-    if users == len(d['Results']) or users - 1 == len(d['Results']):
+    if users == len(d['Results']):
         return d['Users'], d['Avg_time'],d['Std_Time'], d['Delay_Max'], d['Delay_Min'],d['Results']
     else:
-        print("The file did not ")
+        print("The file did not reach to all nodes")
+
 def parse_file(filepath):
     user_no = []
     delay_avg = []
@@ -45,7 +46,7 @@ def plot(filepath,label,colour_,file_size):
     plt.xlabel('Number of Nodes')
     plt.ylabel('Average delay[sec]')
     if file_size:
-        plt.title('Average time required to distribute a {} Byte size file'.format(file_size))
+        plt.title('Average time required to distribute a {} size file'.format(file_size))
 
 # USAGE: ./evaluation_scripts/results_parser.py -o ipfs-vs-BitTorrent -IPFS -BitTorrent -save
 if __name__ == '__main__':
