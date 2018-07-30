@@ -581,19 +581,18 @@ func waitOnSwarmPeers(n IpfsNode) error {
 	return fmt.Errorf("node at %s failed to bootstrap in given time period", addr)
 }
 
-func GetFile(hash string, nd IpfsNode, c chan float64) {
-
-	//out, err := to.RunCmd("ipfs", "id", "-f", "<addrs>")
+// GetFile downloads a single file from node nd, it is asynchronous and works with channels
+func GetFile(hash string, nd IpfsNode, c chan float64, e chan error) {
 	start := time.Now()
 	_, err := nd.RunCmd("ipfs", "cat", hash)
 	elapsed := time.Since(start)
 	if err != nil {
-		fmt.Printf("Error: %s", err)
 		c <- 0.
+		e <- err
 	} else {
 		c <- elapsed.Seconds()
+		e <- nil
 	}
-	//return elapsed.Seconds(), nil
 }
 
 // GetPeerID reads the config of node 'n' and returns its peer ID

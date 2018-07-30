@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,16 +17,18 @@ import (
 	cli "github.com/urfave/cli"
 )
 
-type results struct {
+type SimulationResults struct {
 	Avg_time   float64
 	Std_Time   float64
+	Delay_Min  float64
+	Delay_Max  float64
 	Users      int
 	Date_Time  time.Time
 	Results    []float64
 	DuplBlocks int
 }
 
-func (res results) ResultsSave() {
+func (res SimulationResults) ResultsSave() {
 
 	resultsJSON, _ := json.Marshal(res)
 	f, err := os.OpenFile("results.json", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
@@ -33,7 +36,7 @@ func (res results) ResultsSave() {
 		panic(err)
 	}
 	defer f.Close()
-	if _, err = f.WriteString(string(resultsJSON) + ",\n"); err != nil {
+	if _, err = f.WriteString(string(resultsJSON) + "\n"); err != nil {
 		panic(err)
 	}
 }
@@ -137,13 +140,14 @@ func main() {
 		shellCmd,
 		startCmd,
 		runCmd,
+		connGraphCmd,
 		distCmd,
 		logsCmd,
 	}
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Println("I was here with %s", err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -568,40 +572,138 @@ var runCmd = cli.Command{
 	},
 }
 
-var distCmd = cli.Command{
-	Name:            "dist",
-	Usage:           "distribute a file to all other nodes",
-	SkipFlagParsing: true,
+var connGraphCmd = cli.Command{
+	Name:        "make-topology",
+	Usage:       "Connect nodes according to the connection graph",
+	Description: "Connect all nodes according to specified network topology",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "input-topology",
+			Usage: "Specify connection graph, if none is specified a star topology will be used with center node 0",
+		},
+	},
 	Action: func(c *cli.Context) error {
-		fmt.Println("Let the fun begin!!!")
-		// totalNodes, err := strconv.Atoi(c.Args()[0])
-		hash := c.Args()[0]
-		fmt.Printf("Received Hash %s \n", hash)
+		// Load all nodes
 		nodes, err := util.LoadNodes()
 		if err != nil {
 			return err
 		}
-		// Connect all nodes with the distributor
-		for i := 1; i < len(nodes); i++ {
-			// Connect node i with node 0
-			fmt.Printf("Connecting node %d / %d \n", i, len(nodes)-1)
-			err = util.ConnectNodes(nodes[0], nodes[i], "")
-			if err != nil {
-				fmt.Println("Connection failed!!!!")
-				return err
+		graphDir := c.String("input-topology")
+		// If no input topology is given make default connection and move on
+		if len(graphDir) == 0 {
+			fmt.Println("No connection graph is specified, creating default star topology")
+			for i := 1; i < len(nodes); i++ {
+				err = util.ConnectNodes(nodes[0], nodes[i], "")
+				if err != nil {
+					return err
+				}
 			}
+			return nil
 		}
-		fmt.Printf("=========== Lets Rock & Roll Baby ================ \n")
+		// If input topology is given parse and construct it
+		// Scan Input file Line by Line //
+		inFile, err := os.Open(graphDir)
+		defer inFile.Close()
+		if err != nil {
+			return err
+		}
+		scanner := bufio.NewScanner(inFile)
+		scanner.Split(bufio.ScanLines)
+		lineNumber := 1
+
+		for scanner.Scan() {
+			var destinations []string
+			var lineTokenized []string
+			line := scanner.Text()
+			// Check if the line is a comment or empty and skip it//
+			if len(line) == 0 || line[0] == '#' {
+				lineNumber++
+				continue
+			} else {
+				lineTokenized = strings.Split(line, ":")
+				// Check if the format is correct
+				if len(lineTokenized) == 1 {
+					return errors.New("Line " + strconv.Itoa(lineNumber) + " does not follow the correct format")
+				}
+				destinations = strings.Split(lineTokenized[1], ",")
+			}
+			// Parse origin in the line
+			origin, err := strconv.Atoi(lineTokenized[0])
+			// Check if it can be casted to integer
+			if err != nil {
+				return errors.New("Line: " + strconv.Itoa(lineNumber) + " of connection graph, could not be parsed")
+			}
+			// Check if the node is out of range
+			if origin >= len(nodes) {
+				return errors.New("Node origin in line: " + strconv.Itoa(lineNumber) + " out of range")
+			}
+
+			for _, destination := range destinations {
+				// Check if it can be casted to integer
+				target, err := strconv.Atoi(destination)
+				if err != nil {
+					return errors.New("Check line: " + strconv.Itoa(lineNumber) + " of connection graph, could not be parsed")
+				}
+				// Check if the node is out of range
+				if target >= len(nodes) {
+					return errors.New("Node target in line: " + strconv.Itoa(lineNumber) + " out of range")
+				}
+				// Establish the connection
+				err = util.ConnectNodes(nodes[origin], nodes[target], "")
+				if err != nil {
+					fmt.Println("Connection failed!!!!")
+					return err
+				}
+			}
+			lineNumber++
+		}
+		return nil
+	},
+}
+
+var distCmd = cli.Command{
+	Name:        "dist",
+	Usage:       "distribute a file to all other nodes",
+	Description: "Distribute a single file to all nodes and calculate the statistics",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "hash",
+			Usage: "Hash of the file",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		// Get the file hash and check if its correct
+		hash := c.String("hash")
+		if len(hash) == 0 {
+			return errors.New("No file hash is specified")
+		}
+		// Load all Nodes
+		nodes, err := util.LoadNodes()
+		if err != nil {
+			return err
+		}
+		// Make a Happy print statement
+		fmt.Printf("=========== Simulation Begins ================ \n")
+
+		// Create channels to start asynchronous requests
 		ch := make(chan float64)
-		// Let all nodes get the file
+		errorCh := make(chan error)
+		// Create an asynchronous request from each node
 		for i := 1; i < len(nodes); i++ {
 			fmt.Printf("Downloading file: %d / %d \n", i, len(nodes)-1)
-			go util.GetFile(hash, nodes[i], ch)
+			go util.GetFile(hash, nodes[i], ch, errorCh)
 		}
+
+		// Parse results
 		var delay []float64
 		duplBlocks := 0
 		for i := 1; i < len(nodes); i++ {
 			val := <-ch
+			err := <-errorCh
+			if err != nil {
+				return err
+			}
+			// Get delay and duplicate blocks//
 			delay = append(delay, val)
 			dB, err := getDupBlocksFromNode(i)
 			if err != nil {
@@ -611,18 +713,31 @@ var distCmd = cli.Command{
 			duplBlocks += dB
 		}
 
+		// Calculate Average Delay
 		var sum float64
-		for _, f := range delay {
-			sum += f
+		DelayMin := delay[0]
+		DelayMax := delay[0]
+		for _, d := range delay {
+			sum += d
+			// Calculate Min
+			if d < DelayMin {
+				DelayMin = d
+			}
+			// Calculate Max
+			if d > DelayMax {
+				DelayMax = d
+			}
 		}
 		avg := sum / float64(len(delay))
+		// Calculate Delay Std
 		var sumSq float64
 		for _, f := range delay {
 			sumSq += math.Pow((avg - f), 2)
 		}
 		std := math.Sqrt(sumSq / float64(len(delay)))
 		fmt.Printf("Average Time to distribute file to all nodes: %.4f\nStd Time to distribute file to all nodes %.4f\nDuplicate Blocks: %d\n", avg, std, duplBlocks)
-		res := results{avg, std, len(nodes) - 1, time.Now().UTC(), delay, duplBlocks}
+		// Save results to file
+		res := SimulationResults{avg, std, DelayMin, DelayMax, len(nodes) - 1, time.Now().UTC(), delay, duplBlocks}
 		res.ResultsSave()
 		return nil
 	},

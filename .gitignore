@@ -1,6 +1,8 @@
 #
 results.json
 iptb
+.vscode/
+debug.sh
 
 # Binaries for programs and plugins
 *.exe
