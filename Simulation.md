@@ -27,7 +27,7 @@ do
 done
 ./bin/results_plotter.py -i results.json -size $4
 ```
-If you want to simulate bad network conditions you need to use a docker type node:
+If you want to simulate bad network conditions you need to use a docker type node. Depending on your docker permissions you may need to run these commands as root.
 ```
     # Initalize network
     ./iptb init -n $k -f --type=docker
