@@ -16,7 +16,6 @@ import (
 	"github.com/ipfs/iptb/testbed"
 )
 
-// TODO:Add explanation in the description for topology flag
 var ConnectCmd = cli.Command{
 	Category:  "CORE",
 	Name:      "connect",
@@ -60,12 +59,17 @@ INPUT         EXPANDED
 			Name:  "topology",
 			Usage: "specify a network topology file",
 		},
+		cli.BoolFlag{
+			Name:  "stats",
+			Usage: "output statistics on the command execution",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		flagRoot := c.GlobalString("IPTB_ROOT")
 		flagTestbed := c.GlobalString("testbed")
 		flagTimeout := c.String("timeout")
 		flagTopology := c.String("topology")
+		flagStats := c.Bool("stats")
 
 		timeout, err := time.ParseDuration(flagTimeout)
 		if err != nil {
@@ -86,7 +90,7 @@ INPUT         EXPANDED
 			for _, connectionRow := range topologyGraph {
 				from := connectionRow[0]
 				to := connectionRow[1:]
-				err = connectNodes(tb, []int{from}, to, timeout)
+				err = connectNodes(tb, []int{from}, to, timeout, flagStats)
 				if err != nil {
 					return err
 				}
@@ -108,14 +112,14 @@ INPUT         EXPANDED
 				return err
 			}
 
-			return connectNodes(tb, fromto, fromto, timeout)
+			return connectNodes(tb, fromto, fromto, timeout, flagStats)
 		case 1:
 			fromto, err := parseRange(args[0])
 			if err != nil {
 				return err
 			}
 
-			return connectNodes(tb, fromto, fromto, timeout)
+			return connectNodes(tb, fromto, fromto, timeout, flagStats)
 		case 2:
 			from, err := parseRange(args[0])
 			if err != nil {
@@ -127,14 +131,14 @@ INPUT         EXPANDED
 				return err
 			}
 
-			return connectNodes(tb, from, to, timeout)
+			return connectNodes(tb, from, to, timeout, flagStats)
 		default:
 			return NewUsageError("connet accepts between 0 and 2 arguments")
 		}
 	},
 }
 
-func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration) error {
+func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration, flagStats bool) error {
 	nodes, err := tb.Nodes()
 	if err != nil {
 		return err
@@ -156,7 +160,7 @@ func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration
 		}
 	}
 
-	return buildReport(results, "", false)
+	return buildReport(results, "Connect nodes", flagStats)
 }
 
 func parseTopology(fileDir string, numberOfNodes int) ([][]int, error) {
