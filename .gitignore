@@ -1,5 +1,3 @@
 *.so
 iptb
 .vscode
-topologies/*
-deb.sh

@@ -59,17 +59,12 @@ INPUT         EXPANDED
 			Name:  "topology",
 			Usage: "specify a network topology file",
 		},
-		cli.BoolFlag{
-			Name:  "stats",
-			Usage: "output statistics on the command execution",
-		},
 	},
 	Action: func(c *cli.Context) error {
 		flagRoot := c.GlobalString("IPTB_ROOT")
 		flagTestbed := c.GlobalString("testbed")
 		flagTimeout := c.String("timeout")
 		flagTopology := c.String("topology")
-		flagStats := c.Bool("stats")
 
 		timeout, err := time.ParseDuration(flagTimeout)
 		if err != nil {
@@ -90,7 +85,11 @@ INPUT         EXPANDED
 			for _, connectionRow := range topologyGraph {
 				from := connectionRow[0]
 				to := connectionRow[1:]
-				err = connectNodes(tb, []int{from}, to, timeout, flagStats)
+				results, err := connectNodes(tb, []int{from}, to, timeout)
+				if err != nil {
+					return err
+				}
+				err = buildReport(results, "", false)
 				if err != nil {
 					return err
 				}
@@ -111,15 +110,29 @@ INPUT         EXPANDED
 			if err != nil {
 				return err
 			}
-
-			return connectNodes(tb, fromto, fromto, timeout, flagStats)
+			results, err := connectNodes(tb, fromto, fromto, timeout)
+			if err != nil {
+				return err
+			}
+			err = buildReport(results, "", false)
+			if err != nil {
+				return err
+			}
+			return nil
 		case 1:
 			fromto, err := parseRange(args[0])
 			if err != nil {
 				return err
 			}
-
-			return connectNodes(tb, fromto, fromto, timeout, flagStats)
+			results, err := connectNodes(tb, fromto, fromto, timeout)
+			if err != nil {
+				return err
+			}
+			err = buildReport(results, "", false)
+			if err != nil {
+				return err
+			}
+			return nil
 		case 2:
 			from, err := parseRange(args[0])
 			if err != nil {
@@ -131,17 +144,25 @@ INPUT         EXPANDED
 				return err
 			}
 
-			return connectNodes(tb, from, to, timeout, flagStats)
+			results, err := connectNodes(tb, from, to, timeout)
+			if err != nil {
+				return err
+			}
+			err = buildReport(results, "", false)
+			if err != nil {
+				return err
+			}
+			return nil
 		default:
 			return NewUsageError("connet accepts between 0 and 2 arguments")
 		}
 	},
 }
 
-func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration, flagStats bool) error {
+func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration) ([]Result, error) {
 	nodes, err := tb.Nodes()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var results []Result
@@ -160,7 +181,7 @@ func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration
 		}
 	}
 
-	return buildReport(results, "Connect nodes", flagStats)
+	return results, nil
 }
 
 func parseTopology(fileDir string, numberOfNodes int) ([][]int, error) {
@@ -189,14 +210,14 @@ func parseTopology(fileDir string, numberOfNodes int) ([][]int, error) {
 		if len(line) == 0 || line[0] == '#' {
 			lineNumber++
 			continue
-		} else {
-			lineTokenized = strings.Split(line, ":")
-			// Check if the format is correct
-			if len(lineTokenized) == 1 {
-				return nil, errors.New("Line " + strconv.Itoa(lineNumber) + " does not follow the correct format")
-			}
-			destinations = strings.Split(lineTokenized[1], ",")
 		}
+
+		lineTokenized = strings.Split(line, ":")
+		// Check if the format is correct
+		if len(lineTokenized) == 1 {
+			return nil, errors.New("Line " + strconv.Itoa(lineNumber) + " does not follow the correct format")
+		}
+		destinations = strings.Split(lineTokenized[1], ",")
 		// Declare the topology in that line, the first element is the origin
 		var topologyLine []int
 		// Parse origin in the line
