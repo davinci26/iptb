@@ -23,7 +23,7 @@ var RunCmd = cli.Command{
 			Hidden: true,
 		},
 		cli.BoolFlag{
-			Name:  "stats",
+			Name:  "time",
 			Usage: "Output statistics on the command execution",
 		},
 		cli.StringSliceFlag{
@@ -41,7 +41,7 @@ var RunCmd = cli.Command{
 	Action: func(c *cli.Context) error {
 		flagRoot := c.GlobalString("IPTB_ROOT")
 		flagTestbed := c.GlobalString("testbed")
-		flagStats := c.Bool("stats")
+		flagStats := c.Bool("time")
 		collectFlag := c.StringSlice("collect")
 
 		tb := testbed.NewTestbed(path.Join(flagRoot, "testbeds", flagTestbed))
@@ -61,6 +61,10 @@ var RunCmd = cli.Command{
 			return fmt.Errorf("could not parse node range %s", nodeRange)
 		}
 
+		runCmd := func(node testbedi.Core) (testbedi.Output, error) {
+			return node.RunCmd(context.Background(), nil, args...)
+		}
+
 		// Create a list of list of the specified metrics by the user
 		var metricsBefore [][]string
 		if len(collectFlag) != 0 {
@@ -72,10 +76,6 @@ var RunCmd = cli.Command{
 				}
 				metricsBefore = append(metricsBefore, tmp)
 			}
-		}
-
-		runCmd := func(node testbedi.Core) (testbedi.Output, error) {
-			return node.RunCmd(context.Background(), nil, args...)
 		}
 
 		results, err := mapWithOutput(list, nodes, runCmd)
