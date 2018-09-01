@@ -185,7 +185,8 @@ func validRange(list []int, total int) error {
 func buildReport(results []Result, command string, statsFlag bool) error {
 	var errs []error
 
-	TimeElapsedArray := make([]float64, len(results))
+	timeElapsedArray := make([]float64, len(results))
+	nodeIDArray := make([]int, len(results))
 
 	for i, rs := range results {
 		if rs.Error != nil {
@@ -204,17 +205,19 @@ func buildReport(results []Result, command string, statsFlag bool) error {
 			io.Copy(os.Stdout, rs.Output.Stderr())
 
 			fmt.Println()
-			TimeElapsedArray[i] = rs.TimeElapsed
+			timeElapsedArray[i] = rs.TimeElapsed
+			nodeIDArray[i] = rs.Node
 		}
 
 	}
 	if statsFlag {
-		stats, err := buildStats(TimeElapsedArray)
+		stats, err := buildStats(timeElapsedArray)
 		if err != nil {
 			errs = append(errs, err)
 		} else {
 			statsJSON, _ := json.Marshal(stats)
-			fmt.Printf("Executed command < %s > on %d node(s) \nTime Statistics %s \n", command, len(results), string(statsJSON))
+			fmt.Printf("Executed command < %s > on %d node(s) \nTime Statistics: %s \n", command, len(results), string(statsJSON))
+			printIndivudualResults(timeElapsedArray, nodeIDArray, "time")
 		}
 	}
 
@@ -222,6 +225,36 @@ func buildReport(results []Result, command string, statsFlag bool) error {
 		return cli.NewMultiError(errs...)
 	}
 
+	return nil
+}
+
+func buildMetricStats(metricsBefore []string, metricsAfter []string, metric string) error {
+	var errs []error
+
+	// Substract Before from After to generate the results
+	results, err := substractArrays(metricsBefore, metricsAfter)
+	if err != nil {
+		return err
+	}
+	// Create an array of node IDs
+	// TODO: Make this pretty :)
+	nodesID := make([]int, len(metricsAfter))
+
+	for i := range metricsAfter {
+		nodesID[i] = i
+	}
+	// Use the build stats function to generate the stats
+	stats, err := buildStats(results)
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		statsJSON, _ := json.Marshal(stats)
+		fmt.Printf("Metric collected < %s > on %d node(s) \nStatistics: %s \n", metric, len(metricsAfter), string(statsJSON))
+		printIndivudualResults(results, nodesID, metric)
+	}
+	if len(errs) != 0 {
+		return cli.NewMultiError(errs...)
+	}
 	return nil
 }
 
@@ -312,4 +345,45 @@ func median(sortedInputArray []float64) float64 {
 		med = sortedInputArray[length/2]
 	}
 	return med
+}
+
+// Print individual results to JSON format
+func printIndivudualResults(nodeTime []float64, nodeID []int, metric string) {
+	fmt.Printf("Analytic Results: {[")
+	for i, time := range nodeTime {
+		fmt.Printf("{Node: %d, %s: %f}", nodeID[i], metric, time)
+		if i != len(nodeTime)-1 {
+			fmt.Printf(",")
+		}
+	}
+	fmt.Printf("]},")
+}
+
+/*
+Substract_arrays
+Substract y from x returns [xi-yi] for i in len(x)
+If the arrays do not have the same length or
+the strings are not castable to float
+the function returns an error
+*/
+func substractArrays(lhs []string, rhs []string) ([]float64, error) {
+
+	if len(lhs) != len(rhs) {
+		return nil, fmt.Errorf("Arrays do not have the same length")
+	}
+	results := make([]float64, len(lhs))
+
+	for i := range lhs {
+		valLHS, err := strconv.ParseFloat(lhs[i], 64)
+		if err != nil {
+			return nil, err
+		}
+		valRHS, err := strconv.ParseFloat(rhs[i], 64)
+		if err != nil {
+			return nil, err
+		}
+
+		results[i] = valLHS - valRHS
+	}
+	return results, nil
 }
