@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	cli "github.com/urfave/cli"
 
 	"github.com/ipfs/iptb/testbed"
+	"github.com/ipfs/iptb/testbed/interfaces"
 )
 
 var ConnectCmd = cli.Command{
@@ -128,7 +130,48 @@ func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration
 				Error:  errors.Wrapf(err, "node[%d] => node[%d]", f, t),
 			})
 		}
+
 	}
 
+	return results, nil
+}
+
+func mapConnectWithOutput(from, to []int, nodes []testbedi.Core, timeout time.Duration) ([]Result, error) {
+	var wg sync.WaitGroup
+	var lk sync.Mutex
+
+	var results []Result
+
+	if err := validRange(to, len(nodes)); err != nil {
+		return results, err
+	}
+
+	if err := validRange(from, len(nodes)); err != nil {
+		return results, err
+	}
+
+	for _, f := range from {
+		for _, t := range to {
+			wg.Add(1)
+			go func(from, to int, nodeFrom, nodeTo testbedi.Core) {
+				defer wg.Done()
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+
+				err := nodeFrom.Connect(ctx, nodeTo)
+
+				lk.Lock()
+				defer lk.Unlock()
+				results = append(results, Result{
+					Node:   from,
+					Output: nil,
+					Error:  errors.Wrapf(err, "node[%d] => node[%d]", from, to),
+				})
+
+			}(f, t, nodes[f], nodes[t])
+		}
+	}
+
+	wg.Wait()
 	return results, nil
 }
