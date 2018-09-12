@@ -133,6 +133,9 @@ func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration
 
 	for _, f := range from {
 		for _, t := range to {
+			if f == t {
+				continue
+			}
 			wg.Add(1)
 			go func(from, to int, nodeFrom, nodeTo testbedi.Core) {
 				defer wg.Done()
