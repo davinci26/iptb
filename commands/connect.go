@@ -114,38 +114,19 @@ INPUT         EXPANDED
 func connectNodes(tb testbed.BasicTestbed, from, to []int, timeout time.Duration) ([]Result, error) {
 	var results []Result
 	nodes, err := tb.Nodes()
+
 	if err != nil {
 		return results, err
 	}
-	for _, f := range from {
-		for _, t := range to {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			err = nodes[f].Connect(ctx, nodes[t])
-
-			results = append(results, Result{
-				Node:   f,
-				Output: nil,
-				Error:  errors.Wrapf(err, "node[%d] => node[%d]", f, t),
-			})
-		}
-
-	}
-
-	return results, nil
-}
-
-func mapConnectWithOutput(from, to []int, nodes []testbedi.Core, timeout time.Duration) ([]Result, error) {
+	// synchronization variables
 	var wg sync.WaitGroup
 	var lk sync.Mutex
 
-	var results []Result
-
+	// check if the list `to` is a valid range
 	if err := validRange(to, len(nodes)); err != nil {
 		return results, err
 	}
-
+	// check if the list `from` is a valid range
 	if err := validRange(from, len(nodes)); err != nil {
 		return results, err
 	}
